@@ -1,3 +1,14 @@
+## 0.1.4
+
+* Added copyWith methods to all models for better immutability
+* Added proper error handling for quality selection
+* Added resolution and bitrate formatting utilities
+* Added documentation for VideoQuality model
+* Added type safety improvements
+* Fixed formatting in example app
+* Updated README with quality selection examples
+* Improved code organization and documentation
+
 ## 0.1.3
 
 * Added video quality selection support
