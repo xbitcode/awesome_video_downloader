@@ -147,4 +147,16 @@ void main() {
       ]),
     );
   });
+
+  test('getAvailableQualities', () async {
+    final qualities = await platform.getAvailableQualities(
+      'https://example.com/video.mp4',
+    );
+    expect(qualities, isA<List<Map<String, dynamic>>>());
+    expect(qualities, isNotEmpty);
+    expect(
+      qualities.first,
+      containsPair('height', greaterThan(0)),
+    );
+  });
 }

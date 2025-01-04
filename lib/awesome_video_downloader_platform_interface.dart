@@ -60,4 +60,9 @@ abstract class AwesomeVideoDownloaderPlatform extends PlatformInterface {
   Stream<Map<String, dynamic>> getDownloadProgress(String downloadId) {
     throw UnimplementedError('getDownloadProgress() has not been implemented.');
   }
+
+  Future<List<Map<String, dynamic>>> getAvailableQualities(String url) {
+    throw UnimplementedError(
+        'getAvailableQualities() has not been implemented.');
+  }
 }

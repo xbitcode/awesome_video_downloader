@@ -144,6 +144,42 @@ class AwesomeVideoDownloader(private val context: Context) {
         }
     }
 
+    fun getAvailableQualities(url: String, result: Result) {
+        val mediaItem = MediaItem.fromUri(url)
+        val qualities = mutableListOf<Map<String, Any>>()
+        
+        val dataSourceFactory = DefaultHttpDataSource.Factory()
+        val mediaSource = when {
+            url.endsWith(".m3u8") -> HlsMediaSource.Factory(dataSourceFactory)
+            url.endsWith(".mpd") -> DashMediaSource.Factory(dataSourceFactory)
+            else -> ProgressiveMediaSource.Factory(dataSourceFactory)
+        }.createMediaSource(mediaItem)
+
+        mediaSource.addEventListener(Handler(Looper.getMainLooper()), object : MediaSourceEventListener {
+            override fun onLoadCompleted(
+                windowIndex: Int,
+                mediaPeriodId: MediaSource.MediaPeriodId?,
+                loadEventInfo: LoadEventInfo,
+                mediaLoadData: MediaLoadData
+            ) {
+                val format = mediaLoadData.trackFormat
+                if (format != null && format.height > 0) {
+                    qualities.add(mapOf(
+                        "id" to format.id.toString(),
+                        "width" to format.width,
+                        "height" to format.height,
+                        "bitrate" to format.bitrate,
+                        "codec" to format.codecs ?: "h264",
+                        "isHDR" to (format.colorInfo?.colorTransfer == C.COLOR_TRANSFER_HLG),
+                        "label" to "${format.height}p"
+                    ))
+                }
+            }
+        })
+
+        result.success(qualities)
+    }
+
     private inner class DownloadManagerListener : DownloadManager.Listener {
         override fun onDownloadChanged(
             downloadManager: DownloadManager,

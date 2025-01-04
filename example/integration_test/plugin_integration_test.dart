@@ -8,6 +8,8 @@
 
 import 'dart:async';
 
+import 'package:awesome_video_downloader_example/main.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:awesome_video_downloader/awesome_video_downloader.dart';
@@ -253,6 +255,75 @@ void main() {
       // Verify we got some progress updates
       expect(progressUpdates, greaterThan(0));
       expect(lastSpeed, isNotNull);
+    });
+
+    testWidgets('Quality selection workflow', (tester) async {
+      // Get available qualities
+      final qualities = await downloader.getAvailableQualities(testMp4Url);
+      expect(qualities, isNotEmpty);
+
+      // Select highest quality
+      final highestQuality =
+          qualities.reduce((a, b) => a.bitrate > b.bitrate ? a : b);
+
+      // Start download with selected quality
+      final downloadId = await downloader.startDownload(
+        url: testMp4Url,
+        fileName: 'quality_test.mp4',
+        format: 'mp4',
+        options: VideoDownloadOptions(
+          minimumBitrate: highestQuality.bitrate,
+          maximumBitrate: highestQuality.bitrate,
+          preferHDR: highestQuality.isHDR,
+        ),
+      );
+
+      expect(downloadId, isNotEmpty);
+
+      // Monitor progress
+      final progress = await downloader.getDownloadProgress(downloadId).first;
+      expect(progress.state, equals(DownloadState.downloading));
+    });
+
+    testWidgets('Quality selection UI', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: QualitySelectionDialog(
+            qualities: [
+              VideoQuality(
+                id: '1080p',
+                width: 1920,
+                height: 1080,
+                bitrate: 5000000,
+                isHDR: true,
+                label: 'Full HD',
+              ),
+              VideoQuality(
+                id: '720p',
+                width: 1280,
+                height: 720,
+                bitrate: 2500000,
+                label: '720p',
+              ),
+            ],
+          ),
+        ),
+      );
+
+      // Verify UI elements
+      expect(find.text('Select Quality'), findsOneWidget);
+      expect(find.text('Full HD (5.0 Mbps)'), findsOneWidget);
+      expect(find.text('720p (2.5 Mbps)'), findsOneWidget);
+      expect(find.text('HDR'), findsOneWidget);
+      expect(find.text('1920x1080'), findsOneWidget);
+      expect(find.text('1280x720'), findsOneWidget);
+
+      // Test selection
+      await tester.tap(find.text('Full HD (5.0 Mbps)'));
+      await tester.pumpAndSettle();
+
+      // Dialog should be closed with selected quality
+      expect(find.byType(QualitySelectionDialog), findsNothing);
     });
   });
 }

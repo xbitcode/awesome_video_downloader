@@ -72,6 +72,34 @@ class MockAwesomeVideoDownloaderPlatform
       }
     ]);
   }
+
+  @override
+  Future<List<Map<String, dynamic>>> getAvailableQualities(String url) async {
+    if (!url.startsWith('http')) {
+      throw ArgumentError('Invalid URL');
+    }
+
+    return [
+      {
+        'id': '1080p',
+        'width': 1920,
+        'height': 1080,
+        'bitrate': 5000000,
+        'codec': 'h264',
+        'isHDR': true,
+        'label': 'Full HD',
+      },
+      {
+        'id': '720p',
+        'width': 1280,
+        'height': 720,
+        'bitrate': 2500000,
+        'codec': 'h264',
+        'isHDR': false,
+        'label': '720p',
+      },
+    ];
+  }
 }
 
 const String testUrl =
@@ -214,6 +242,53 @@ void main() {
       expect(slowProgress.formattedSpeed, '512.0 B/s');
       expect(slowProgress.speedInMBps, closeTo(0.00048828125, 0.0000001));
       expect(slowProgress.speedInKBps, 0.5);
+    });
+
+    test('VideoQuality formatting', () {
+      const quality = VideoQuality(
+        id: 'test_quality',
+        width: 1920,
+        height: 1080,
+        bitrate: 5000000, // 5 Mbps
+        codec: 'h264',
+        isHDR: true,
+        label: 'Full HD',
+      );
+
+      expect(quality.resolution, equals('1920x1080'));
+      expect(quality.bitrateString, equals('5.0 Mbps'));
+      expect(quality.label, equals('Full HD'));
+
+      // Test default label
+      const autoLabelQuality = VideoQuality(
+        id: 'auto_label',
+        width: 1280,
+        height: 720,
+        bitrate: 2500000,
+      );
+      expect(autoLabelQuality.label, equals('720p'));
+    });
+
+    test('getAvailableQualities', () async {
+      final qualities = await downloader.getAvailableQualities(testUrl);
+
+      expect(qualities, isNotEmpty);
+      expect(
+        qualities.first,
+        isA<VideoQuality>()
+            .having((q) => q.width, 'width', greaterThan(0))
+            .having((q) => q.height, 'height', greaterThan(0))
+            .having((q) => q.bitrate, 'bitrate', greaterThan(0))
+            .having((q) => q.codec, 'codec', isNotEmpty)
+            .having((q) => q.label, 'label', isNotEmpty),
+      );
+    });
+
+    test('getAvailableQualities with invalid URL', () {
+      expect(
+        () => downloader.getAvailableQualities('invalid_url'),
+        throwsA(isA<ArgumentError>()),
+      );
     });
   });
 }

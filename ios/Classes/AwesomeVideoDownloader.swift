@@ -203,4 +203,39 @@ class AwesomeVideoDownloader: NSObject, AVAssetDownloadDelegate {
         
         eventSink?(progressMap)
     }
+    
+    func getAvailableQualities(url: String, completion: @escaping (Result<[[String: Any]], Error>) -> Void) {
+        guard let assetURL = URL(string: url) else {
+            completion(.failure(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid URL"])))
+            return
+        }
+        
+        let asset = AVURLAsset(url: assetURL)
+        asset.loadValuesAsynchronously(forKeys: ["availableMediaCharacteristicsWithMediaSelectionOptions"]) {
+            do {
+                let group = asset.mediaSelectionGroup(forMediaCharacteristic: .video)
+                var qualities: [[String: Any]] = []
+                
+                if let options = group?.options {
+                    for (index, option) in options.enumerated() {
+                        if let resolution = option.displayName.components(separatedBy: "x").last,
+                           let height = Int(resolution) {
+                            let width = Int(Double(height) * 16 / 9)
+                            let quality: [String: Any] = [
+                                "id": String(index),
+                                "width": width,
+                                "height": height,
+                                "bitrate": option.estimatedDataRate,
+                                "codec": option.mediaSubTypes.first?.rawValue ?? "h264",
+                                "isHDR": option.propertyList["HDR"] as? Bool ?? false,
+                                "label": option.displayName
+                            ]
+                            qualities.append(quality)
+                        }
+                    }
+                }
+                completion(.success(qualities))
+            }
+        }
+    }
 } 

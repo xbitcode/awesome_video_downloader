@@ -128,12 +128,27 @@ class _DownloaderPageState extends State<DownloaderPage> {
     final fileName = uri.pathSegments.last;
 
     try {
+      // Get available qualities
+      final qualities = await _downloader.getAvailableQualities(url);
+
+      if (!mounted) return;
+
+      // Show quality selection dialog
+      final selectedQuality = await showDialog<VideoQuality>(
+        context: context,
+        builder: (context) => QualitySelectionDialog(qualities: qualities),
+      );
+
+      if (selectedQuality == null) return;
+
       final downloadId = await _downloader.startDownload(
         url: url,
         fileName: fileName,
         format: _getFormat(url),
         options: VideoDownloadOptions(
-          preferHDR: true,
+          minimumBitrate: selectedQuality.bitrate,
+          maximumBitrate: selectedQuality.bitrate,
+          preferHDR: selectedQuality.isHDR,
           preferMultichannel: true,
         ),
       );
@@ -278,5 +293,29 @@ class _DownloaderPageState extends State<DownloaderPage> {
     _progressSubscriptions[downloadId]?.cancel();
     _progressSubscriptions.remove(downloadId);
     _loadDownloads();
+  }
+}
+
+class QualitySelectionDialog extends StatelessWidget {
+  final List<VideoQuality> qualities;
+
+  const QualitySelectionDialog({super.key, required this.qualities});
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Select Quality'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: qualities
+            .map((q) => ListTile(
+                  title: Text('${q.label} (${q.bitrateString})'),
+                  subtitle: Text(q.resolution),
+                  trailing: q.isHDR ? const Text('HDR') : null,
+                  onTap: () => Navigator.pop(context, q),
+                ))
+            .toList(),
+      ),
+    );
   }
 }

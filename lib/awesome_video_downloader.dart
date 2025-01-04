@@ -170,6 +170,19 @@ class AwesomeVideoDownloader {
   bool _isValidFormat(String format) {
     return ['mp4', 'hls', 'dash'].contains(format.toLowerCase());
   }
+
+  /// Get available qualities for a video URL
+  Future<List<VideoQuality>> getAvailableQualities(String url) async {
+    _checkInitialized();
+
+    if (!_isValidUrl(url)) {
+      throw ArgumentError('Invalid URL provided');
+    }
+
+    final qualities = await AwesomeVideoDownloaderPlatform.instance
+        .getAvailableQualities(url);
+    return qualities.map((q) => VideoQuality.fromMap(q)).toList();
+  }
 }
 
 /// Configuration options for video downloads
@@ -434,4 +447,50 @@ class DownloadProgress extends BaseDownloadInfo {
       };
 
   String get formattedProgress => '${(progress * 100).toStringAsFixed(1)}%';
+}
+
+/// Represents a video quality option
+class VideoQuality {
+  final String id;
+  final int width;
+  final int height;
+  final int bitrate;
+  final String codec;
+  final bool isHDR;
+  final String label;
+
+  const VideoQuality({
+    required this.id,
+    required this.width,
+    required this.height,
+    required this.bitrate,
+    this.codec = 'h264',
+    this.isHDR = false,
+    String? label,
+  }) : label = label ?? '${height}p';
+
+  String get resolution => '${width}x$height';
+  String get bitrateString => '${(bitrate / 1000000).toStringAsFixed(1)} Mbps';
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'width': width,
+        'height': height,
+        'bitrate': bitrate,
+        'codec': codec,
+        'isHDR': isHDR,
+        'label': label,
+      };
+
+  factory VideoQuality.fromMap(Map<String, dynamic> map) {
+    return VideoQuality(
+      id: map['id'] as String,
+      width: map['width'] as int,
+      height: map['height'] as int,
+      bitrate: map['bitrate'] as int,
+      codec: map['codec'] as String? ?? 'h264',
+      isHDR: map['isHDR'] as bool? ?? false,
+      label: map['label'] as String?,
+    );
+  }
 }

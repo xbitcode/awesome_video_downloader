@@ -1,3 +1,15 @@
+## 0.1.3
+
+* Added video quality selection support
+* Added VideoQuality model for quality information
+* Added getAvailableQualities method for HLS/DASH streams
+* Added quality selection dialog UI component
+* Added bitrate and resolution information
+* Added HDR detection support
+* Added comprehensive tests for quality selection
+* Updated example app with quality selection UI
+* Improved documentation for quality selection features
+
 ## 0.1.2
 
 * Fixed stream handling in method channel tests
