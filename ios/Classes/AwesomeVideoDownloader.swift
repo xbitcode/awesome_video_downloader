@@ -88,14 +88,10 @@ class AwesomeVideoDownloader: NSObject, AVAssetDownloadDelegate {
         }
         
         let taskId = UUID().uuidString
-        activeTasks[taskId] = DownloadTask(
-            id: taskId,
-            url: url,
-            fileName: fileName,
-            format: format,
-            assetDownloadTask: downloadTask,
-            state: "downloading"
-        )
+        let task = DownloadTask(id: taskId, url: url, fileName: fileName, format: format)
+        task.assetDownloadTask = downloadTask
+        task.state = "downloading"
+        activeTasks[taskId] = task
         
         downloadTask.resume()
         completion(.success(taskId))
@@ -104,14 +100,14 @@ class AwesomeVideoDownloader: NSObject, AVAssetDownloadDelegate {
     func pauseDownload(downloadId: String) {
         guard let task = activeTasks[downloadId] else { return }
         task.assetDownloadTask?.suspend()
-        activeTasks[downloadId]?.state = "paused"
+        task.state = "paused"
         notifyTaskUpdate(task)
     }
     
     func resumeDownload(downloadId: String) {
         guard let task = activeTasks[downloadId] else { return }
         task.assetDownloadTask?.resume()
-        activeTasks[downloadId]?.state = "downloading"
+        task.state = "downloading"
         notifyTaskUpdate(task)
     }
     
