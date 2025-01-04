@@ -11,6 +11,15 @@ import 'package:flutter/widgets.dart';
 
 import 'awesome_video_downloader_platform_interface.dart';
 
+extension ListExtension<T> on List<T> {
+  T? firstWhereOrNull(bool Function(T element) test) {
+    for (var element in this) {
+      if (test(element)) return element;
+    }
+    return null;
+  }
+}
+
 /// A Flutter plugin for downloading videos in various formats (HLS, DASH, MP4)
 class AwesomeVideoDownloader {
   bool _isInitialized = false;
@@ -71,14 +80,18 @@ class AwesomeVideoDownloader {
   /// - [fileName]: The name to save the file as
   /// - [format]: The format of the video ('mp4', 'hls', or 'dash')
   /// - [options]: Optional download configuration
+  /// - [allowDuplicates]: Whether to allow downloading the same video multiple times
   ///
-  /// Returns the download ID that can be used to track the download
+  /// Returns:
+  /// - The download ID (either new or existing if the video is already being downloaded)
+  /// - Throws [StateError] if video is already downloaded and [allowDuplicates] is false
   Future<String> startDownload({
     required String url,
     required String fileName,
     required String format,
     VideoDownloadOptions? options,
-  }) {
+    bool allowDuplicates = false,
+  }) async {
     _checkInitialized();
 
     if (!_isValidUrl(url)) {
@@ -87,6 +100,14 @@ class AwesomeVideoDownloader {
 
     if (!_isValidFormat(format)) {
       throw ArgumentError('Invalid format. Supported formats: mp4, hls, dash');
+    }
+
+    // Check for existing download
+    if (!allowDuplicates) {
+      final existing = await checkExistingDownload(url);
+      if (existing != null) {
+        return existing.id;
+      }
     }
 
     return AwesomeVideoDownloaderPlatform.instance.startDownload(
@@ -184,6 +205,22 @@ class AwesomeVideoDownloader {
     final qualities = await AwesomeVideoDownloaderPlatform.instance
         .getAvailableQualities(url);
     return qualities.map((q) => VideoQuality.fromMap(q)).toList();
+  }
+
+  /// Check if a video has already been downloaded
+  Future<DownloadInfo?> checkExistingDownload(String url) async {
+    _checkInitialized();
+
+    if (!_isValidUrl(url)) {
+      throw ArgumentError('Invalid URL provided');
+    }
+
+    final downloads = await getAllDownloads();
+    return downloads.firstWhereOrNull(
+      (download) =>
+          download.url == url &&
+          (download.isCompleted || download.isDownloading),
+    );
   }
 }
 

@@ -1,3 +1,8 @@
+## 0.1.6
+
+* Check if video previously been downloaded or being downloaded
+
+
 ## 0.1.5
 
 * Added Equatable for proper model comparison
