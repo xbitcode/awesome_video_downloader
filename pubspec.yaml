@@ -1,6 +1,6 @@
 name: awesome_video_downloader
 description: A Flutter plugin for downloading videos in various formats (HLS, DASH, MP4) with support for background downloads, progress tracking, and offline playback.
-version: 0.1.4
+version: 0.1.5
 homepage: https://github.com/AkmaljonAbdirakhimov/awesome_video_downloader
 repository: https://github.com/AkmaljonAbdirakhimov/awesome_video_downloader
 issue_tracker: https://github.com/AkmaljonAbdirakhimov/awesome_video_downloader/issues
@@ -11,6 +11,7 @@ environment:
   flutter: '>=3.3.0'
 
 dependencies:
+  equatable: ^2.0.7
   flutter:
     sdk: flutter
   plugin_platform_interface: ^2.0.2

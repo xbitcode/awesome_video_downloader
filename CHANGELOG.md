@@ -1,3 +1,9 @@
+## 0.1.5
+
+* Added Equatable for proper model comparison
+* Added props implementation for all models
+* Added proper model equality checks
+
 ## 0.1.4
 
 * Added copyWith methods to all models for better immutability

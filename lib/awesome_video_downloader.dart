@@ -1,3 +1,4 @@
+// ignore_for_file: public_member_api_docs, sort_constructors_first
 // You have generated a new plugin project without specifying the `--platforms`
 // flag. A plugin project with no platform support was generated. To add a
 // platform, run `flutter create -t plugin --platforms <platforms> .` under the
@@ -5,6 +6,7 @@
 // platforms in the `pubspec.yaml` at
 // https://flutter.dev/to/pubspec-plugin-platforms.
 
+import 'package:equatable/equatable.dart';
 import 'package:flutter/widgets.dart';
 
 import 'awesome_video_downloader_platform_interface.dart';
@@ -186,7 +188,7 @@ class AwesomeVideoDownloader {
 }
 
 /// Configuration options for video downloads
-class VideoDownloadOptions {
+class VideoDownloadOptions extends Equatable {
   /// Minimum required bitrate in bits per second
   final int? minimumBitrate;
 
@@ -250,6 +252,17 @@ class VideoDownloadOptions {
       'headers': headers,
     };
   }
+
+  @override
+  List<Object?> get props {
+    return [
+      minimumBitrate,
+      maximumBitrate,
+      preferHDR,
+      preferMultichannel,
+      headers,
+    ];
+  }
 }
 
 /// Represents the current state of a download
@@ -272,7 +285,7 @@ enum DownloadState {
 }
 
 /// Base class for download information
-abstract class BaseDownloadInfo {
+abstract class BaseDownloadInfo extends Equatable {
   final String id;
   final DownloadState state;
   final int bytesDownloaded;
@@ -299,7 +312,7 @@ abstract class BaseDownloadInfo {
 }
 
 /// Status information for a download
-class DownloadStatus extends BaseDownloadInfo {
+class DownloadStatus extends BaseDownloadInfo with EquatableMixin {
   final String? error;
 
   const DownloadStatus({
@@ -347,6 +360,16 @@ class DownloadStatus extends BaseDownloadInfo {
         if (filePath != null) 'filePath': filePath,
         if (error != null) 'error': error,
       };
+
+  @override
+  List<Object?> get props => [
+        id,
+        state,
+        bytesDownloaded,
+        totalBytes,
+        filePath,
+        error,
+      ];
 }
 
 /// Detailed information about a download
@@ -416,6 +439,19 @@ class DownloadInfo extends BaseDownloadInfo {
         'totalBytes': totalBytes,
         if (filePath != null) 'filePath': filePath,
       };
+
+  @override
+  List<Object?> get props => [
+        id,
+        url,
+        fileName,
+        format,
+        createdAt,
+        state,
+        bytesDownloaded,
+        totalBytes,
+        filePath,
+      ];
 }
 
 /// Real-time progress information for a download
@@ -487,10 +523,21 @@ class DownloadProgress extends BaseDownloadInfo {
       };
 
   String get formattedProgress => '${(progress * 100).toStringAsFixed(1)}%';
+
+  @override
+  List<Object?> get props => [
+        id,
+        progress,
+        bytesDownloaded,
+        totalBytes,
+        speed,
+        state,
+        filePath,
+      ];
 }
 
 /// Represents a video quality option
-class VideoQuality {
+class VideoQuality extends Equatable {
   final String id;
   final int width;
   final int height;
@@ -552,4 +599,7 @@ class VideoQuality {
       label: map['label'] as String?,
     );
   }
+
+  @override
+  List<Object?> get props => [id, width, height, bitrate, codec, isHDR, label];
 }
