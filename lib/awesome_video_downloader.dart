@@ -386,7 +386,7 @@ class DownloadInfo extends BaseDownloadInfo {
 
 /// Real-time progress information for a download
 class DownloadProgress extends BaseDownloadInfo {
-  final double speed;
+  final double speed; // bytes per second
 
   const DownloadProgress({
     required super.id,
@@ -398,9 +398,18 @@ class DownloadProgress extends BaseDownloadInfo {
     super.filePath,
   }) : super();
 
-  String get formattedSpeed =>
-      '${(speed / 1024 / 1024).toStringAsFixed(2)} MB/s';
-  String get formattedProgress => '${(progress * 100).toStringAsFixed(1)}%';
+  String get formattedSpeed {
+    if (speed < 1024) {
+      return '${speed.toStringAsFixed(1)} B/s';
+    } else if (speed < 1024 * 1024) {
+      return '${(speed / 1024).toStringAsFixed(1)} KB/s';
+    } else {
+      return '${(speed / 1024 / 1024).toStringAsFixed(1)} MB/s';
+    }
+  }
+
+  double get speedInMBps => speed / 1024 / 1024;
+  double get speedInKBps => speed / 1024;
 
   factory DownloadProgress.fromMap(Map<String, dynamic> map) {
     return DownloadProgress(

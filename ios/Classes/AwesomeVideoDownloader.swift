@@ -20,6 +20,9 @@ class AwesomeVideoDownloader: NSObject, AVAssetDownloadDelegate {
         var state: String = "not_started"
         var error: String?
         var filePath: String?
+        var lastBytesDownloaded: Int64 = 0
+        var lastUpdateTime: Date?
+        var speed: Double = 0.0
     }
     
     private let AVAssetDownloadTaskPrefersMultichannelKey = "AVAssetDownloadTaskPrefersMultichannel"
@@ -121,21 +124,32 @@ class AwesomeVideoDownloader: NSObject, AVAssetDownloadDelegate {
         timeRangeExpectedToLoad: CMTimeRange
     ) {
         guard let taskId = getTaskId(for: assetDownloadTask) else { return }
+        guard let task = activeTasks[taskId] else { return }
         
-        let duration = CMTimeGetSeconds(timeRangeExpectedToLoad.duration)
-        let downloaded = loadedTimeRanges.reduce(0.0) { result, value in
-            let timeRange = value.timeRangeValue
-            return result + CMTimeGetSeconds(timeRange.duration)
+        // Calculate progress
+        let totalDuration = CMTimeGetSeconds(timeRangeExpectedToLoad.duration)
+        var loadedDuration: Double = 0
+        for rangeValue in loadedTimeRanges {
+            let timeRange = rangeValue.timeRangeValue
+            loadedDuration += CMTimeGetSeconds(timeRange.duration)
         }
         
-        let progress = downloaded / duration
-        activeTasks[taskId]?.progress = progress
-        activeTasks[taskId]?.bytesDownloaded = Int64(downloaded * 1000000) // Approximate bytes
-        activeTasks[taskId]?.totalBytes = Int64(duration * 1000000)
+        task.progress = totalDuration > 0 ? loadedDuration / totalDuration : 0
         
-        if let task = activeTasks[taskId] {
-            notifyTaskUpdate(task)
+        // Calculate speed
+        let currentTime = Date()
+        if let lastTime = task.lastUpdateTime {
+            let timeDiff = currentTime.timeIntervalSince(lastTime)
+            if timeDiff > 0 {
+                let bytesDiff = task.bytesDownloaded - task.lastBytesDownloaded
+                task.speed = Double(bytesDiff) / timeDiff  // bytes per second
+            }
         }
+        
+        task.lastBytesDownloaded = task.bytesDownloaded
+        task.lastUpdateTime = currentTime
+        
+        notifyTaskUpdate(task)
     }
     
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
@@ -179,7 +193,7 @@ class AwesomeVideoDownloader: NSObject, AVAssetDownloadDelegate {
             "progress": task.progress,
             "bytesDownloaded": task.bytesDownloaded,
             "totalBytes": task.totalBytes,
-            "speed": 0.0,
+            "speed": task.speed,
             "state": task.state
         ]
         

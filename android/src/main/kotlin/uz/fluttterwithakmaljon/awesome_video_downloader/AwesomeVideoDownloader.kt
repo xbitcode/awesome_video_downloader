@@ -30,7 +30,10 @@ class AwesomeVideoDownloader(private val context: Context) {
         var state: String = "not_started",
         var error: String? = null,
         var downloadRequest: DownloadRequest? = null,
-        var filePath: String? = null
+        var filePath: String? = null,
+        var lastBytesDownloaded: Long = 0,
+        var lastUpdateTime: Long = 0,
+        var speed: Double = 0.0
     )
 
     init {
@@ -171,6 +174,19 @@ class AwesomeVideoDownloader(private val context: Context) {
                     task.progress = download.percentDownloaded / 100.0
                     task.bytesDownloaded = download.bytesDownloaded
                     task.totalBytes = download.contentLength
+                    
+                    // Calculate speed
+                    val currentTime = System.currentTimeMillis()
+                    if (task.lastUpdateTime > 0) {
+                        val timeDiff = (currentTime - task.lastUpdateTime) / 1000.0 // seconds
+                        if (timeDiff > 0) {
+                            val bytesDiff = task.bytesDownloaded - task.lastBytesDownloaded
+                            task.speed = bytesDiff / timeDiff // bytes per second
+                        }
+                    }
+                    
+                    task.lastBytesDownloaded = task.bytesDownloaded
+                    task.lastUpdateTime = currentTime
                 }
                 Download.STATE_STOPPED -> {
                     task.state = "paused"
@@ -187,7 +203,7 @@ class AwesomeVideoDownloader(private val context: Context) {
             "progress" to task.progress,
             "bytesDownloaded" to task.bytesDownloaded,
             "totalBytes" to task.totalBytes,
-            "speed" to 0.0,
+            "speed" to task.speed,
             "state" to task.state
         )
         

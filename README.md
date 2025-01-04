@@ -28,7 +28,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  awesome_video_downloader: ^1.0.0
+  awesome_video_downloader: ^x.y.z
 ```
 
 ### Platform Setup
