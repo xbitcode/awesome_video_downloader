@@ -55,15 +55,6 @@ class MethodChannelAwesomeVideoDownloader
   }
 
   @override
-  Future<Map<String, dynamic>> getDownloadStatus(String downloadId) async {
-    final status = await methodChannel.invokeMethod<Map<Object?, Object?>>(
-      'getDownloadStatus',
-      {'downloadId': downloadId},
-    );
-    return Map<String, dynamic>.from(status ?? {});
-  }
-
-  @override
   Future<List<Map<String, dynamic>>> getAllDownloads() async {
     final downloads =
         await methodChannel.invokeMethod<List<Object?>>('getAllDownloads');
@@ -76,5 +67,15 @@ class MethodChannelAwesomeVideoDownloader
   Stream<Map<String, dynamic>> getDownloadProgress(String downloadId) {
     return eventChannel.receiveBroadcastStream({'downloadId': downloadId}).map(
         (event) => Map<String, dynamic>.from(event as Map));
+  }
+
+  @override
+  Stream<Map<String, dynamic>> getDownloadStatus(String downloadId) {
+    final statusChannel = EventChannel(
+      'awesome_video_downloader/status/$downloadId',
+    );
+    return statusChannel.receiveBroadcastStream().map((event) {
+      return event as Map<String, dynamic>;
+    });
   }
 }

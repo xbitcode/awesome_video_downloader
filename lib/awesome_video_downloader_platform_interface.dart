@@ -49,7 +49,7 @@ abstract class AwesomeVideoDownloaderPlatform extends PlatformInterface {
     throw UnimplementedError('cancelDownload() has not been implemented.');
   }
 
-  Future<Map<String, dynamic>> getDownloadStatus(String downloadId) {
+  Stream<Map<String, dynamic>> getDownloadStatus(String downloadId) {
     throw UnimplementedError('getDownloadStatus() has not been implemented.');
   }
 

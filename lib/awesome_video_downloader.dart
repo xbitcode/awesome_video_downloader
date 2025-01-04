@@ -148,16 +148,16 @@ class AwesomeVideoDownloader {
     return AwesomeVideoDownloaderPlatform.instance.cancelDownload(downloadId);
   }
 
-  /// Get the current status of a download
-  Future<DownloadStatus> getDownloadStatus(String downloadId) async {
+  /// Stream download status updates
+  Stream<DownloadStatus> getDownloadStatus(String downloadId) {
     _checkInitialized();
 
     if (downloadId.isEmpty) {
       throw ArgumentError('Download ID cannot be empty');
     }
-    final status = await AwesomeVideoDownloaderPlatform.instance
-        .getDownloadStatus(downloadId);
-    return DownloadStatus.fromMap(status);
+    return AwesomeVideoDownloaderPlatform.instance
+        .getDownloadStatus(downloadId)
+        .map((status) => DownloadStatus.fromMap(status));
   }
 
   /// Get a list of all downloads (active and completed)

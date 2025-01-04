@@ -144,4 +144,36 @@ void main() {
       containsPair('height', greaterThan(0)),
     );
   });
+
+  test('getDownloadStatus stream', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMessageHandler(
+      'awesome_video_downloader/status/test_download_id',
+      (ByteData? message) async {
+        // Send test event immediately
+        final status = {
+          'id': 'test_download_id',
+          'state': DownloadState.downloading.name,
+          'error': null,
+        };
+
+        // Send event through platform channel
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .handlePlatformMessage(
+          'awesome_video_downloader/status/test_download_id',
+          const StandardMethodCodec().encodeSuccessEnvelope(status),
+          (_) {},
+        );
+
+        return null;
+      },
+    );
+
+    final status = await platform.getDownloadStatus('test_download_id').first;
+    expect(status, {
+      'id': 'test_download_id',
+      'state': DownloadState.downloading.name,
+      'error': null,
+    });
+  });
 }

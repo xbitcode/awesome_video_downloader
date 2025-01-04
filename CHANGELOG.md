@@ -8,6 +8,10 @@
   - Added checkExistingDownload method
   - Added allowDuplicates parameter
   - Improved download management
+* Converted status to stream:
+  - Real-time status updates
+  - Better state management
+  - Improved UI reactivity
 * Updated documentation:
   - Simplified README structure
   - Added duplicate handling examples
