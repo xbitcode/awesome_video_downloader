@@ -30,17 +30,15 @@ class MockAwesomeVideoDownloaderPlatform
   Future<void> cancelDownload(String downloadId) async {}
 
   @override
-  Stream<Map<String, dynamic>> getDownloadStatus(String downloadId) {
-    return Stream.fromIterable([
-      {
-        'id': downloadId,
-        'state': DownloadState.downloading.name,
-        'bytesDownloaded': 1024,
-        'totalBytes': 2048,
-        'error': null,
-        'filePath': '/path/to/file.mp4',
-      }
-    ]);
+  Future<Map<String, dynamic>> getDownloadStatus(String downloadId) async {
+    return {
+      'id': downloadId,
+      'state': DownloadState.downloading.name,
+      'bytesDownloaded': 1024,
+      'totalBytes': 2048,
+      'error': null,
+      'filePath': '/path/to/file.mp4',
+    };
   }
 
   @override
@@ -169,9 +167,8 @@ void main() {
       );
     });
 
-    test('getDownloadStatus stream', () async {
-      final status =
-          await downloader.getDownloadStatus('mock_download_id').first;
+    test('getDownloadStatus', () async {
+      final status = await downloader.getDownloadStatus('mock_download_id');
       expect(status.id, 'mock_download_id');
       expect(status.state, DownloadState.downloading);
       expect(status.error, null);

@@ -45,7 +45,7 @@ void main() {
       expect(progress.speed, greaterThanOrEqualTo(0));
 
       // Check status
-      final status = await downloader.getDownloadStatus(downloadId).first;
+      final status = await downloader.getDownloadStatus(downloadId);
       expect(status.state, equals(DownloadState.downloading));
       expect(status.error, isNull);
 
@@ -80,7 +80,7 @@ void main() {
       expect(downloadId, isNotEmpty);
 
       // Check initial status
-      final status = await downloader.getDownloadStatus(downloadId).first;
+      final status = await downloader.getDownloadStatus(downloadId);
       expect(status.state, equals(DownloadState.downloading));
 
       // Monitor progress
@@ -102,74 +102,13 @@ void main() {
 
       // Pause download
       await downloader.pauseDownload(downloadId);
-      final pausedStatus = await downloader.getDownloadStatus(downloadId).first;
+      final pausedStatus = await downloader.getDownloadStatus(downloadId);
       expect(pausedStatus.state, equals(DownloadState.paused));
 
       // Resume download
       await downloader.resumeDownload(downloadId);
-      final resumedStatus =
-          await downloader.getDownloadStatus(downloadId).first;
+      final resumedStatus = await downloader.getDownloadStatus(downloadId);
       expect(resumedStatus.state, equals(DownloadState.downloading));
-
-      // Monitor status stream
-      final statusSubscription =
-          downloader.getDownloadStatus(downloadId).listen(
-                expectAsync1(
-                  (status) {
-                    expect(status.id, equals(downloadId));
-                    expect(
-                        status.state,
-                        isIn([
-                          DownloadState.downloading,
-                          DownloadState.paused,
-                          DownloadState.completed,
-                        ]));
-                  },
-                  count: 1,
-                ),
-              );
-
-      await Future.delayed(const Duration(seconds: 1));
-      await statusSubscription.cancel();
-    });
-
-    testWidgets('Status and progress streams', (tester) async {
-      final downloadId = await downloader.startDownload(
-        url: testMp4Url,
-        fileName: 'stream_test.mp4',
-        format: 'mp4',
-      );
-
-      // Monitor both streams
-      final statusStream = downloader.getDownloadStatus(downloadId);
-      final progressStream = downloader.getDownloadProgress(downloadId);
-
-      // Listen to first events
-      final status = await statusStream.first;
-      final progress = await progressStream.first;
-
-      // Verify status
-      expect(status.id, equals(downloadId));
-      expect(status.state, equals(DownloadState.downloading));
-      expect(status.error, isNull);
-
-      // Verify progress
-      expect(progress.id, equals(downloadId));
-      expect(progress.progress, greaterThanOrEqualTo(0));
-      expect(progress.speed, greaterThanOrEqualTo(0));
-
-      // Test state transitions
-      await downloader.pauseDownload(downloadId);
-      final pausedStatus = await statusStream.first;
-      expect(pausedStatus.state, equals(DownloadState.paused));
-
-      await downloader.resumeDownload(downloadId);
-      final resumedStatus = await statusStream.first;
-      expect(resumedStatus.state, equals(DownloadState.downloading));
-
-      await downloader.cancelDownload(downloadId);
-      final cancelledStatus = await statusStream.first;
-      expect(cancelledStatus.state, equals(DownloadState.cancelled));
     });
 
     testWidgets('Duplicate download handling', (tester) async {
