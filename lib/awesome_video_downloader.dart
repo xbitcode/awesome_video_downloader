@@ -311,6 +311,23 @@ class DownloadStatus extends BaseDownloadInfo {
     this.error,
   });
 
+  DownloadStatus copyWith({
+    DownloadState? state,
+    int? bytesDownloaded,
+    int? totalBytes,
+    String? filePath,
+    String? error,
+  }) {
+    return DownloadStatus(
+      id: id,
+      state: state ?? this.state,
+      bytesDownloaded: bytesDownloaded ?? this.bytesDownloaded,
+      totalBytes: totalBytes ?? this.totalBytes,
+      filePath: filePath ?? this.filePath,
+      error: error ?? this.error,
+    );
+  }
+
   factory DownloadStatus.fromMap(Map<String, dynamic> map) {
     return DownloadStatus(
       id: map['id'] as String,
@@ -352,18 +369,22 @@ class DownloadInfo extends BaseDownloadInfo {
   });
 
   DownloadInfo copyWith({
+    String? url,
+    String? fileName,
+    String? format,
     DownloadState? state,
+    DateTime? createdAt,
     int? bytesDownloaded,
     int? totalBytes,
     String? filePath,
   }) {
     return DownloadInfo(
       id: id,
-      url: url,
-      fileName: fileName,
-      format: format,
+      url: url ?? this.url,
+      fileName: fileName ?? this.fileName,
+      format: format ?? this.format,
       state: state ?? this.state,
-      createdAt: createdAt,
+      createdAt: createdAt ?? this.createdAt,
       bytesDownloaded: bytesDownloaded ?? this.bytesDownloaded,
       totalBytes: totalBytes ?? this.totalBytes,
       filePath: filePath ?? this.filePath,
@@ -424,6 +445,25 @@ class DownloadProgress extends BaseDownloadInfo {
   double get speedInMBps => speed / 1024 / 1024;
   double get speedInKBps => speed / 1024;
 
+  DownloadProgress copyWith({
+    double? progress,
+    int? bytesDownloaded,
+    int? totalBytes,
+    double? speed,
+    DownloadState? state,
+    String? filePath,
+  }) {
+    return DownloadProgress(
+      id: id,
+      progress: progress ?? this.progress,
+      bytesDownloaded: bytesDownloaded ?? this.bytesDownloaded,
+      totalBytes: totalBytes ?? this.totalBytes,
+      speed: speed ?? this.speed,
+      state: state ?? this.state,
+      filePath: filePath ?? this.filePath,
+    );
+  }
+
   factory DownloadProgress.fromMap(Map<String, dynamic> map) {
     return DownloadProgress(
       id: map['id'] as String,
@@ -471,6 +511,25 @@ class VideoQuality {
 
   String get resolution => '${width}x$height';
   String get bitrateString => '${(bitrate / 1000000).toStringAsFixed(1)} Mbps';
+
+  VideoQuality copyWith({
+    int? width,
+    int? height,
+    int? bitrate,
+    String? codec,
+    bool? isHDR,
+    String? label,
+  }) {
+    return VideoQuality(
+      id: id,
+      width: width ?? this.width,
+      height: height ?? this.height,
+      bitrate: bitrate ?? this.bitrate,
+      codec: codec ?? this.codec,
+      isHDR: isHDR ?? this.isHDR,
+      label: label ?? this.label,
+    );
+  }
 
   Map<String, dynamic> toMap() => {
         'id': id,
