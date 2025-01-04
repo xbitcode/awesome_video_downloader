@@ -89,10 +89,7 @@ void main() {
     expect(status, {
       'id': 'test_download_id',
       'state': DownloadState.downloading.name,
-      'bytesDownloaded': 1024,
-      'totalBytes': 2048,
       'error': null,
-      'filePath': '/path/to/file.mp4',
     });
   });
 
@@ -105,7 +102,6 @@ void main() {
   });
 
   test('getDownloadProgress stream', () async {
-    // Setup mock event channel handler
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMessageHandler(
       eventChannel.name,
@@ -114,11 +110,7 @@ void main() {
         final progress = {
           'id': 'test_download_id',
           'progress': 0.5,
-          'bytesDownloaded': 1024,
-          'totalBytes': 2048,
           'speed': 512.0,
-          'state': DownloadState.downloading.name,
-          'filePath': '/path/to/file.mp4',
         };
 
         // Send event through platform channel
@@ -129,23 +121,16 @@ void main() {
           (_) {},
         );
 
-        // Return success for the listen call
         return null;
       },
     );
 
-    // Wait for the first event
     final event = await platform.getDownloadProgress('test_download_id').first;
-
-    // Verify the event data
-    expect(
-      event,
-      allOf([
-        containsPair('id', 'test_download_id'),
-        containsPair('progress', 0.5),
-        containsPair('state', DownloadState.downloading.name),
-      ]),
-    );
+    expect(event, {
+      'id': 'test_download_id',
+      'progress': 0.5,
+      'speed': 512.0,
+    });
   });
 
   test('getAvailableQualities', () async {

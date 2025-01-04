@@ -1,7 +1,21 @@
+## 0.1.7
+
+* Simplified model structure:
+  - Separated status, progress, and info models
+  - Removed redundant fields and methods
+  - Improved model clarity and purpose
+* Added duplicate download detection:
+  - Added checkExistingDownload method
+  - Added allowDuplicates parameter
+  - Improved download management
+* Updated documentation:
+  - Simplified README structure
+  - Added duplicate handling examples
+  - Improved model documentation
+
 ## 0.1.6
 
 * Check if video previously been downloaded or being downloaded
-
 
 ## 0.1.5
 

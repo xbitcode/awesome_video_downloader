@@ -76,46 +76,26 @@ class _DownloaderPageState extends State<DownloaderPage> {
         setState(() {
           final index = _downloads.indexWhere((d) => d.id == downloadId);
           if (index != -1) {
-            _downloads[index] = _downloads[index].copyWith(
-              bytesDownloaded: progress.bytesDownloaded,
-              totalBytes: progress.totalBytes,
-              state: progress.state,
-              filePath: progress.filePath,
-            );
-
-            if (progress.isCompleted) {
-              _progressSubscriptions[downloadId]?.cancel();
-              _progressSubscriptions.remove(downloadId);
-
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content:
-                      Text('Download completed: ${_downloads[index].fileName}'),
-                  action: progress.filePath != null
-                      ? SnackBarAction(
-                          label: 'Show File',
-                          onPressed: () {
-                            // TODO: Implement file viewing
-                          },
-                        )
-                      : null,
-                ),
-              );
-            }
+            // Get current status
+            _downloader.getDownloadStatus(downloadId).then((status) {
+              if (mounted) {
+                setState(() {
+                  _downloads[index] = DownloadInfo(
+                    id: downloadId,
+                    url: _downloads[index].url,
+                    fileName: _downloads[index].fileName,
+                    format: _downloads[index].format,
+                    createdAt: _downloads[index].createdAt,
+                    state: status.state,
+                    bytesDownloaded: _downloads[index].bytesDownloaded,
+                    totalBytes: _downloads[index].totalBytes,
+                    filePath: _downloads[index].filePath,
+                  );
+                });
+              }
+            });
           }
         });
-      },
-      onError: (error) {
-        setState(() {
-          final index = _downloads.indexWhere((d) => d.id == downloadId);
-          if (index != -1) {
-            _downloads[index] = _downloads[index].copyWith(
-              state: DownloadState.failed,
-            );
-          }
-        });
-        _progressSubscriptions[downloadId]?.cancel();
-        _progressSubscriptions.remove(downloadId);
       },
     );
   }
@@ -173,15 +153,13 @@ class _DownloaderPageState extends State<DownloaderPage> {
 
   Widget _buildDownloadItem(DownloadInfo download) {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
+      child: ListTile(
+        title: Text(download.fileName),
+        subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(download.fileName),
-            if (download.isDownloading) ...[
-              LinearProgressIndicator(value: download.progress),
-              const SizedBox(height: 8),
+            Text('Status: ${download.state.name}'),
+            if (download.isDownloading)
               StreamBuilder<DownloadProgress>(
                 stream: _downloader.getDownloadProgress(download.id),
                 builder: (context, snapshot) {
@@ -190,33 +168,30 @@ class _DownloaderPageState extends State<DownloaderPage> {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Text('Progress: ${progress.formattedProgress}'),
                       Text('Speed: ${progress.formattedSpeed}'),
-                      Text(
-                          'Progress: ${(progress.progress * 100).toStringAsFixed(1)}%'),
-                      Text('Downloaded: ${progress.formattedSize}'),
                     ],
                   );
                 },
               ),
-            ],
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                if (download.isDownloading)
-                  TextButton(
-                    onPressed: () => _pauseDownload(download.id),
-                    child: const Text('Pause'),
-                  )
-                else if (download.isPaused)
-                  TextButton(
-                    onPressed: () => _resumeDownload(download.id),
-                    child: const Text('Resume'),
-                  ),
-                TextButton(
-                  onPressed: () => _cancelDownload(download.id),
-                  child: const Text('Cancel'),
-                ),
-              ],
+          ],
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (download.isDownloading)
+              TextButton(
+                onPressed: () => _pauseDownload(download.id),
+                child: const Text('Pause'),
+              )
+            else if (download.state == DownloadState.paused)
+              TextButton(
+                onPressed: () => _resumeDownload(download.id),
+                child: const Text('Resume'),
+              ),
+            TextButton(
+              onPressed: () => _cancelDownload(download.id),
+              child: const Text('Cancel'),
             ),
           ],
         ),

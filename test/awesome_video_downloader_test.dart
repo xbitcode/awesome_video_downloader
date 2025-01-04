@@ -171,10 +171,7 @@ void main() {
       final status = await downloader.getDownloadStatus('mock_download_id');
       expect(status.id, 'mock_download_id');
       expect(status.state, DownloadState.downloading);
-      expect(status.bytesDownloaded, 1024);
-      expect(status.totalBytes, 2048);
       expect(status.error, null);
-      expect(status.filePath, '/path/to/file.mp4');
     });
 
     test('getDownloadProgress', () async {
@@ -182,11 +179,9 @@ void main() {
           await downloader.getDownloadProgress('mock_download_id').first;
       expect(progress.id, 'mock_download_id');
       expect(progress.progress, 0.5);
-      expect(progress.bytesDownloaded, 1024);
-      expect(progress.totalBytes, 2048);
       expect(progress.speed, 512.0);
-      expect(progress.state, DownloadState.downloading);
-      expect(progress.filePath, '/path/to/file.mp4');
+      expect(progress.formattedProgress, '50.0%');
+      expect(progress.formattedSpeed, '512.0 B/s');
     });
 
     test('VideoDownloadOptions validation', () {
@@ -216,32 +211,15 @@ void main() {
       expect(options.preferMultichannel, true);
     });
 
-    test('DownloadProgress speed formatting', () {
+    test('DownloadProgress formatting', () {
       const progress = DownloadProgress(
         id: 'test_id',
-        progress: 0.5,
-        bytesDownloaded: 1024 * 1024, // 1 MB
-        totalBytes: 2 * 1024 * 1024, // 2 MB
+        progress: 0.75,
         speed: 1024 * 1024.0, // 1 MB/s
-        state: DownloadState.downloading,
       );
 
+      expect(progress.formattedProgress, '75.0%');
       expect(progress.formattedSpeed, '1.0 MB/s');
-      expect(progress.speedInMBps, 1.0);
-      expect(progress.speedInKBps, 1024.0);
-
-      const slowProgress = DownloadProgress(
-        id: 'test_id',
-        progress: 0.5,
-        bytesDownloaded: 1024,
-        totalBytes: 2048,
-        speed: 512.0, // 512 B/s
-        state: DownloadState.downloading,
-      );
-
-      expect(slowProgress.formattedSpeed, '512.0 B/s');
-      expect(slowProgress.speedInMBps, closeTo(0.00048828125, 0.0000001));
-      expect(slowProgress.speedInKBps, 0.5);
     });
 
     test('VideoQuality formatting', () {

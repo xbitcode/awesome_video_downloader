@@ -321,20 +321,16 @@ enum DownloadState {
   }
 }
 
-/// Base class for download information
-abstract class BaseDownloadInfo extends Equatable {
+/// Status information for a download
+class DownloadStatus {
   final String id;
   final DownloadState state;
-  final int bytesDownloaded;
-  final int totalBytes;
-  final String? filePath;
+  final String? error;
 
-  const BaseDownloadInfo({
+  const DownloadStatus({
     required this.id,
     required this.state,
-    required this.bytesDownloaded,
-    required this.totalBytes,
-    this.filePath,
+    this.error,
   });
 
   bool get isCompleted => state == DownloadState.completed;
@@ -342,114 +338,45 @@ abstract class BaseDownloadInfo extends Equatable {
   bool get isFailed => state == DownloadState.failed;
   bool get isDownloading => state == DownloadState.downloading;
 
-  double get progress => totalBytes > 0 ? bytesDownloaded / totalBytes : 0.0;
-
-  String get formattedSize =>
-      '${(bytesDownloaded / 1024 / 1024).toStringAsFixed(1)}/${(totalBytes / 1024 / 1024).toStringAsFixed(1)} MB';
-}
-
-/// Status information for a download
-class DownloadStatus extends BaseDownloadInfo with EquatableMixin {
-  final String? error;
-
-  const DownloadStatus({
-    required super.id,
-    required super.state,
-    required super.bytesDownloaded,
-    required super.totalBytes,
-    super.filePath,
-    this.error,
-  });
-
-  DownloadStatus copyWith({
-    DownloadState? state,
-    int? bytesDownloaded,
-    int? totalBytes,
-    String? filePath,
-    String? error,
-  }) {
-    return DownloadStatus(
-      id: id,
-      state: state ?? this.state,
-      bytesDownloaded: bytesDownloaded ?? this.bytesDownloaded,
-      totalBytes: totalBytes ?? this.totalBytes,
-      filePath: filePath ?? this.filePath,
-      error: error ?? this.error,
-    );
-  }
-
   factory DownloadStatus.fromMap(Map<String, dynamic> map) {
     return DownloadStatus(
       id: map['id'] as String,
       state: DownloadState.fromJson(map['state'] as String),
-      bytesDownloaded: map['bytesDownloaded'] as int,
-      totalBytes: map['totalBytes'] as int,
-      filePath: map['filePath'] as String?,
       error: map['error'] as String?,
     );
   }
-
-  Map<String, dynamic> toMap() => {
-        'id': id,
-        'state': state.toJson(),
-        'bytesDownloaded': bytesDownloaded,
-        'totalBytes': totalBytes,
-        if (filePath != null) 'filePath': filePath,
-        if (error != null) 'error': error,
-      };
-
-  @override
-  List<Object?> get props => [
-        id,
-        state,
-        bytesDownloaded,
-        totalBytes,
-        filePath,
-        error,
-      ];
 }
 
-/// Detailed information about a download
-class DownloadInfo extends BaseDownloadInfo {
+/// Detailed download information
+class DownloadInfo {
+  final String id;
   final String url;
   final String fileName;
   final String format;
   final DateTime createdAt;
+  final DownloadState state;
+  final int bytesDownloaded;
+  final int totalBytes;
+  final String? filePath;
 
   const DownloadInfo({
-    required super.id,
+    required this.id,
     required this.url,
     required this.fileName,
     required this.format,
-    required super.state,
     required this.createdAt,
-    super.bytesDownloaded = 0,
-    super.totalBytes = 0,
-    super.filePath,
+    required this.state,
+    this.bytesDownloaded = 0,
+    this.totalBytes = 0,
+    this.filePath,
   });
 
-  DownloadInfo copyWith({
-    String? url,
-    String? fileName,
-    String? format,
-    DownloadState? state,
-    DateTime? createdAt,
-    int? bytesDownloaded,
-    int? totalBytes,
-    String? filePath,
-  }) {
-    return DownloadInfo(
-      id: id,
-      url: url ?? this.url,
-      fileName: fileName ?? this.fileName,
-      format: format ?? this.format,
-      state: state ?? this.state,
-      createdAt: createdAt ?? this.createdAt,
-      bytesDownloaded: bytesDownloaded ?? this.bytesDownloaded,
-      totalBytes: totalBytes ?? this.totalBytes,
-      filePath: filePath ?? this.filePath,
-    );
-  }
+  String get formattedSize =>
+      '${(bytesDownloaded / 1024 / 1024).toStringAsFixed(1)}/'
+      '${(totalBytes / 1024 / 1024).toStringAsFixed(1)} MB';
+
+  bool get isCompleted => state == DownloadState.completed;
+  bool get isDownloading => state == DownloadState.downloading;
 
   factory DownloadInfo.fromMap(Map<String, dynamic> map) {
     return DownloadInfo(
@@ -464,113 +391,34 @@ class DownloadInfo extends BaseDownloadInfo {
       filePath: map['filePath'] as String?,
     );
   }
-
-  Map<String, dynamic> toMap() => {
-        'id': id,
-        'url': url,
-        'fileName': fileName,
-        'format': format,
-        'state': state.toJson(),
-        'createdAt': createdAt.toIso8601String(),
-        'bytesDownloaded': bytesDownloaded,
-        'totalBytes': totalBytes,
-        if (filePath != null) 'filePath': filePath,
-      };
-
-  @override
-  List<Object?> get props => [
-        id,
-        url,
-        fileName,
-        format,
-        createdAt,
-        state,
-        bytesDownloaded,
-        totalBytes,
-        filePath,
-      ];
 }
 
-/// Real-time progress information for a download
-class DownloadProgress extends BaseDownloadInfo {
-  final double speed; // bytes per second
+/// Download progress information
+class DownloadProgress {
+  final String id;
+  final double progress;
+  final double speed;
 
   const DownloadProgress({
-    required super.id,
-    required double progress,
-    required super.bytesDownloaded,
-    required super.totalBytes,
+    required this.id,
+    required this.progress,
     required this.speed,
-    required super.state,
-    super.filePath,
-  }) : super();
+  });
 
+  String get formattedProgress => '${(progress * 100).toStringAsFixed(1)}%';
   String get formattedSpeed {
-    if (speed < 1024) {
-      return '${speed.toStringAsFixed(1)} B/s';
-    } else if (speed < 1024 * 1024) {
-      return '${(speed / 1024).toStringAsFixed(1)} KB/s';
-    } else {
-      return '${(speed / 1024 / 1024).toStringAsFixed(1)} MB/s';
-    }
-  }
-
-  double get speedInMBps => speed / 1024 / 1024;
-  double get speedInKBps => speed / 1024;
-
-  DownloadProgress copyWith({
-    double? progress,
-    int? bytesDownloaded,
-    int? totalBytes,
-    double? speed,
-    DownloadState? state,
-    String? filePath,
-  }) {
-    return DownloadProgress(
-      id: id,
-      progress: progress ?? this.progress,
-      bytesDownloaded: bytesDownloaded ?? this.bytesDownloaded,
-      totalBytes: totalBytes ?? this.totalBytes,
-      speed: speed ?? this.speed,
-      state: state ?? this.state,
-      filePath: filePath ?? this.filePath,
-    );
+    if (speed < 1024) return '${speed.toStringAsFixed(1)} B/s';
+    if (speed < 1024 * 1024) return '${(speed / 1024).toStringAsFixed(1)} KB/s';
+    return '${(speed / 1024 / 1024).toStringAsFixed(1)} MB/s';
   }
 
   factory DownloadProgress.fromMap(Map<String, dynamic> map) {
     return DownloadProgress(
       id: map['id'] as String,
       progress: map['progress'] as double,
-      bytesDownloaded: map['bytesDownloaded'] as int,
-      totalBytes: map['totalBytes'] as int,
       speed: map['speed'] as double,
-      state: DownloadState.fromJson(map['state'] as String),
-      filePath: map['filePath'] as String?,
     );
   }
-
-  Map<String, dynamic> toMap() => {
-        'id': id,
-        'progress': progress,
-        'bytesDownloaded': bytesDownloaded,
-        'totalBytes': totalBytes,
-        'speed': speed,
-        'state': state.toJson(),
-        if (filePath != null) 'filePath': filePath,
-      };
-
-  String get formattedProgress => '${(progress * 100).toStringAsFixed(1)}%';
-
-  @override
-  List<Object?> get props => [
-        id,
-        progress,
-        bytesDownloaded,
-        totalBytes,
-        speed,
-        state,
-        filePath,
-      ];
 }
 
 /// Represents a video quality option
