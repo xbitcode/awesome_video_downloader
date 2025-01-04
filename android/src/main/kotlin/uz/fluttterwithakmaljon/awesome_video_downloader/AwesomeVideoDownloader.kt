@@ -110,6 +110,7 @@ class AwesomeVideoDownloader(private val context: Context) {
             
             completion(Result.success(downloadId))
         } catch (e: Exception) {
+            Log.e("AwesomeVideoDownloader", "Error starting download", e)
             completion(Result.failure(e))
         }
     }
@@ -187,18 +188,16 @@ class AwesomeVideoDownloader(private val context: Context) {
             finalException: Exception?
         ) {
             val task = activeTasks[download.request.id] ?: return
-            
+
             when (download.state) {
                 Download.STATE_COMPLETED -> {
                     task.state = "completed"
                     task.progress = 1.0
-                    val downloadedFile = File(context.getExternalFilesDir(null), 
-                        "downloads/${task.fileName}")
+                    val downloadedFile = File(context.getExternalFilesDir(null), "downloads/${task.fileName}")
                     if (downloadedFile.exists()) {
                         task.filePath = downloadedFile.absolutePath
                     }
                     notifyTaskUpdate(task)
-                    // Close the stream after sending the final update
                     eventSink?.endOfStream()
                 }
                 Download.STATE_FAILED -> {
@@ -210,7 +209,7 @@ class AwesomeVideoDownloader(private val context: Context) {
                     task.progress = download.percentDownloaded / 100.0
                     task.bytesDownloaded = download.bytesDownloaded
                     task.totalBytes = download.contentLength
-                    
+
                     // Calculate speed
                     val currentTime = System.currentTimeMillis()
                     if (task.lastUpdateTime > 0) {
@@ -220,7 +219,7 @@ class AwesomeVideoDownloader(private val context: Context) {
                             task.speed = bytesDiff / timeDiff // bytes per second
                         }
                     }
-                    
+
                     task.lastBytesDownloaded = task.bytesDownloaded
                     task.lastUpdateTime = currentTime
                 }
@@ -228,7 +227,7 @@ class AwesomeVideoDownloader(private val context: Context) {
                     task.state = "paused"
                 }
             }
-            
+
             notifyTaskUpdate(task)
         }
     }

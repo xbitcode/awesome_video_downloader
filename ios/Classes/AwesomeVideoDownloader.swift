@@ -8,7 +8,7 @@ class AwesomeVideoDownloader: NSObject, AVAssetDownloadDelegate {
     private var downloadSession: AVAssetDownloadURLSession?
     internal var activeTasks: [String: DownloadTask] = [:]
     
-    struct DownloadTask {
+    class DownloadTask {
         let id: String
         let url: String
         let fileName: String
@@ -23,6 +23,13 @@ class AwesomeVideoDownloader: NSObject, AVAssetDownloadDelegate {
         var lastBytesDownloaded: Int64 = 0
         var lastUpdateTime: Date?
         var speed: Double = 0.0
+        
+        init(id: String, url: String, fileName: String, format: String) {
+            self.id = id
+            self.url = url
+            self.fileName = fileName
+            self.format = format
+        }
     }
     
     private let AVAssetDownloadTaskPrefersMultichannelKey = "AVAssetDownloadTaskPrefersMultichannel"
@@ -213,7 +220,7 @@ class AwesomeVideoDownloader: NSObject, AVAssetDownloadDelegate {
         let asset = AVURLAsset(url: assetURL)
         asset.loadValuesAsynchronously(forKeys: ["availableMediaCharacteristicsWithMediaSelectionOptions"]) {
             do {
-                let group = asset.mediaSelectionGroup(forMediaCharacteristic: .video)
+                let group = asset.mediaSelectionGroup(forMediaCharacteristic: .visual)
                 var qualities: [[String: Any]] = []
                 
                 if let options = group?.options {
