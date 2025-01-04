@@ -432,4 +432,6 @@ class DownloadProgress extends BaseDownloadInfo {
         'state': state.toJson(),
         if (filePath != null) 'filePath': filePath,
       };
+
+  String get formattedProgress => '${(progress * 100).toStringAsFixed(1)}%';
 }

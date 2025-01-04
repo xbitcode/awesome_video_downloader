@@ -105,11 +105,13 @@ void main() {
   });
 
   test('getDownloadProgress stream', () async {
+    // Setup mock event channel handler
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMessageHandler(
       eventChannel.name,
       (ByteData? message) async {
-        final Map<String, dynamic> progress = {
+        // Send test event immediately
+        final progress = {
           'id': 'test_download_id',
           'progress': 0.5,
           'bytesDownloaded': 1024,
@@ -118,17 +120,31 @@ void main() {
           'state': DownloadState.downloading.name,
           'filePath': '/path/to/file.mp4',
         };
-        return const StandardMethodCodec().encodeSuccessEnvelope(progress);
+
+        // Send event through platform channel
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .handlePlatformMessage(
+          eventChannel.name,
+          const StandardMethodCodec().encodeSuccessEnvelope(progress),
+          (_) {},
+        );
+
+        // Return success for the listen call
+        return null;
       },
     );
 
-    final stream = platform.getDownloadProgress('test_download_id');
+    // Wait for the first event
+    final event = await platform.getDownloadProgress('test_download_id').first;
+
+    // Verify the event data
     expect(
-      stream,
-      emits(predicate((Map<String, dynamic> event) =>
-          event['id'] == 'test_download_id' &&
-          event['progress'] == 0.5 &&
-          event['state'] == DownloadState.downloading.name)),
+      event,
+      allOf([
+        containsPair('id', 'test_download_id'),
+        containsPair('progress', 0.5),
+        containsPair('state', DownloadState.downloading.name),
+      ]),
     );
   });
 }

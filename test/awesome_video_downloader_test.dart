@@ -74,9 +74,23 @@ class MockAwesomeVideoDownloaderPlatform
   }
 }
 
+const String testUrl =
+    "https://meta.vcdn.biz/ae6a3779fc0e85c73bd18c5a28f2f4b6_mgg/vod/hls/b/450_900_1350_1500_2000_5000/"
+    "u_sid/0/o/202638611/rsid/e24fa7d0-750d-42e6-8132-849ef48a4aba/u_uid/806672782/u_vod/1/"
+    "u_device/24seven_uz/u_devicekey/_24seven_uz_test/u_did/MTo4MDY2NzI3ODI6MTczMjA5MzYyMjo6MWI0NzYxOGViZmZjZjdhN2Q5ZWFiNzU4YWQzNmQ2YTA=/"
+    "a/0/type.amlst/playlist.m3u8";
+
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   final AwesomeVideoDownloaderPlatform initialPlatform =
       AwesomeVideoDownloaderPlatform.instance;
+
+  setUp(() async {
+    AwesomeVideoDownloaderPlatform.instance =
+        MockAwesomeVideoDownloaderPlatform();
+    await AwesomeVideoDownloaderPlatform.instance.initialize();
+  });
 
   test('$MethodChannelAwesomeVideoDownloader is the default instance', () {
     expect(
@@ -87,26 +101,23 @@ void main() {
     late AwesomeVideoDownloader downloader;
     late MockAwesomeVideoDownloaderPlatform fakePlatform;
 
-    setUp(() {
+    setUp(() async {
       fakePlatform = MockAwesomeVideoDownloaderPlatform();
       AwesomeVideoDownloaderPlatform.instance = fakePlatform;
       downloader = AwesomeVideoDownloader();
-    });
-
-    test('initialize', () async {
       await downloader.initialize();
     });
 
     test('startDownload', () async {
       final downloadId = await downloader.startDownload(
-        url: 'https://example.com/video.mp4',
+        url: testUrl,
         fileName: 'video.mp4',
         format: 'mp4',
       );
       expect(downloadId, 'mock_download_id');
     });
 
-    test('startDownload with invalid URL', () async {
+    test('startDownload with invalid URL', () {
       expect(
         () => downloader.startDownload(
           url: 'invalid_url',
@@ -175,6 +186,34 @@ void main() {
       expect(options.maximumBitrate, 2000000);
       expect(options.preferHDR, true);
       expect(options.preferMultichannel, true);
+    });
+
+    test('DownloadProgress speed formatting', () {
+      const progress = DownloadProgress(
+        id: 'test_id',
+        progress: 0.5,
+        bytesDownloaded: 1024 * 1024, // 1 MB
+        totalBytes: 2 * 1024 * 1024, // 2 MB
+        speed: 1024 * 1024.0, // 1 MB/s
+        state: DownloadState.downloading,
+      );
+
+      expect(progress.formattedSpeed, '1.0 MB/s');
+      expect(progress.speedInMBps, 1.0);
+      expect(progress.speedInKBps, 1024.0);
+
+      const slowProgress = DownloadProgress(
+        id: 'test_id',
+        progress: 0.5,
+        bytesDownloaded: 1024,
+        totalBytes: 2048,
+        speed: 512.0, // 512 B/s
+        state: DownloadState.downloading,
+      );
+
+      expect(slowProgress.formattedSpeed, '512.0 B/s');
+      expect(slowProgress.speedInMBps, closeTo(0.00048828125, 0.0000001));
+      expect(slowProgress.speedInKBps, 0.5);
     });
   });
 }

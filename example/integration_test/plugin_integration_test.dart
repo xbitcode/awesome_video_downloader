@@ -213,5 +213,46 @@ void main() {
       expect(options.preferMultichannel, isTrue);
       expect(options.headers?['Authorization'], equals('Bearer test'));
     });
+
+    testWidgets('Download speed calculation', (tester) async {
+      final downloadId = await downloader.startDownload(
+        url: testMp4Url,
+        fileName: 'speed_test.mp4',
+        format: 'mp4',
+      );
+
+      double? lastSpeed;
+      int progressUpdates = 0;
+
+      // Monitor progress for a few seconds
+      await for (final progress in downloader.getDownloadProgress(downloadId)) {
+        progressUpdates++;
+
+        // Verify speed is being calculated
+        expect(progress.speed, isNonNegative);
+
+        if (lastSpeed != null) {
+          // Speed should be somewhat consistent (not jumping wildly)
+          expect(
+            (progress.speed - lastSpeed).abs(),
+            lessThan(lastSpeed * 2), // Allow up to 2x variation
+          );
+        }
+
+        lastSpeed = progress.speed;
+
+        // Print speed information for debugging
+        print('Speed: ${progress.formattedSpeed}');
+        print('Progress: ${(progress.progress * 100).toStringAsFixed(1)}%');
+        print('Downloaded: ${progress.formattedSize}');
+
+        // Break after a few updates or completion
+        if (progressUpdates >= 5 || progress.isCompleted) break;
+      }
+
+      // Verify we got some progress updates
+      expect(progressUpdates, greaterThan(0));
+      expect(lastSpeed, isNotNull);
+    });
   });
 }

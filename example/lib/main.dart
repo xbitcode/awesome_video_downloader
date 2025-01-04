@@ -156,6 +156,59 @@ class _DownloaderPageState extends State<DownloaderPage> {
     return 'mp4';
   }
 
+  Widget _buildDownloadItem(DownloadInfo download) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(download.fileName),
+            if (download.isDownloading) ...[
+              LinearProgressIndicator(value: download.progress),
+              const SizedBox(height: 8),
+              StreamBuilder<DownloadProgress>(
+                stream: _downloader.getDownloadProgress(download.id),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) return const SizedBox();
+                  final progress = snapshot.data!;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Speed: ${progress.formattedSpeed}'),
+                      Text(
+                          'Progress: ${(progress.progress * 100).toStringAsFixed(1)}%'),
+                      Text('Downloaded: ${progress.formattedSize}'),
+                    ],
+                  );
+                },
+              ),
+            ],
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (download.isDownloading)
+                  TextButton(
+                    onPressed: () => _pauseDownload(download.id),
+                    child: const Text('Pause'),
+                  )
+                else if (download.isPaused)
+                  TextButton(
+                    onPressed: () => _resumeDownload(download.id),
+                    child: const Text('Resume'),
+                  ),
+                TextButton(
+                  onPressed: () => _cancelDownload(download.id),
+                  child: const Text('Cancel'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -191,24 +244,7 @@ class _DownloaderPageState extends State<DownloaderPage> {
               itemCount: _downloads.length,
               itemBuilder: (context, index) {
                 final download = _downloads[index];
-                return DownloadListItem(
-                  download: download,
-                  onPause: () async {
-                    await _downloader.pauseDownload(download.id);
-                    _loadDownloads();
-                  },
-                  onResume: () async {
-                    await _downloader.resumeDownload(download.id);
-                    _subscribeToProgress(download.id);
-                    _loadDownloads();
-                  },
-                  onCancel: () async {
-                    await _downloader.cancelDownload(download.id);
-                    _progressSubscriptions[download.id]?.cancel();
-                    _progressSubscriptions.remove(download.id);
-                    _loadDownloads();
-                  },
-                );
+                return _buildDownloadItem(download);
               },
             ),
           ),
@@ -225,71 +261,22 @@ class _DownloaderPageState extends State<DownloaderPage> {
     _urlController.dispose();
     super.dispose();
   }
-}
 
-class DownloadListItem extends StatelessWidget {
-  final DownloadInfo download;
-  final VoidCallback onPause;
-  final VoidCallback onResume;
-  final VoidCallback onCancel;
+  Future<void> _pauseDownload(String downloadId) async {
+    await _downloader.pauseDownload(downloadId);
+    _loadDownloads();
+  }
 
-  const DownloadListItem({
-    super.key,
-    required this.download,
-    required this.onPause,
-    required this.onResume,
-    required this.onCancel,
-  });
+  Future<void> _resumeDownload(String downloadId) async {
+    await _downloader.resumeDownload(downloadId);
+    _subscribeToProgress(downloadId);
+    _loadDownloads();
+  }
 
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              download.fileName,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            if (download.isDownloading) ...[
-              LinearProgressIndicator(
-                value: download.progress,
-              ),
-              const SizedBox(height: 8),
-              Text(download.formattedSize),
-            ] else
-              Text('Status: ${download.state.name}'),
-            if (download.filePath != null)
-              Text('Saved at: ${download.filePath}',
-                  style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                if (download.isDownloading)
-                  IconButton.filledTonal(
-                    icon: const Icon(Icons.pause),
-                    onPressed: onPause,
-                  )
-                else if (download.isPaused)
-                  IconButton.filledTonal(
-                    icon: const Icon(Icons.play_arrow),
-                    onPressed: onResume,
-                  ),
-                const SizedBox(width: 8),
-                IconButton.filledTonal(
-                  icon: const Icon(Icons.cancel),
-                  onPressed: onCancel,
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
+  Future<void> _cancelDownload(String downloadId) async {
+    await _downloader.cancelDownload(downloadId);
+    _progressSubscriptions[downloadId]?.cancel();
+    _progressSubscriptions.remove(downloadId);
+    _loadDownloads();
   }
 }

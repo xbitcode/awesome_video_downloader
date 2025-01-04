@@ -1,3 +1,15 @@
+## 0.1.2
+
+* Fixed stream handling in method channel tests
+* Improved download progress stream reliability
+* Added proper cleanup for event channels
+* Fixed timeout issues in integration tests
+* Added speed calculation tests
+* Updated example app with better progress display
+* Fixed stream completion handling
+* Added proper error handling for platform channels
+* Improved documentation for stream usage
+
 ## 0.1.1
 
 * Added proper initialization check for Flutter bindings
