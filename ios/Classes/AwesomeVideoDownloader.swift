@@ -8,7 +8,7 @@ class AwesomeVideoDownloader: NSObject, AVAssetDownloadDelegate {
     private var downloadSession: AVAssetDownloadURLSession?
     internal var activeTasks: [String: DownloadTask] = [:]
     
-    class DownloadTask {
+    struct DownloadTask {
         let id: String
         let url: String
         let fileName: String
@@ -23,13 +23,6 @@ class AwesomeVideoDownloader: NSObject, AVAssetDownloadDelegate {
         var lastBytesDownloaded: Int64 = 0
         var lastUpdateTime: Date?
         var speed: Double = 0.0
-        
-        init(id: String, url: String, fileName: String, format: String) {
-            self.id = id
-            self.url = url
-            self.fileName = fileName
-            self.format = format
-        }
     }
     
     private let AVAssetDownloadTaskPrefersMultichannelKey = "AVAssetDownloadTaskPrefersMultichannel"
@@ -88,10 +81,14 @@ class AwesomeVideoDownloader: NSObject, AVAssetDownloadDelegate {
         }
         
         let taskId = UUID().uuidString
-        let task = DownloadTask(id: taskId, url: url, fileName: fileName, format: format)
-        task.assetDownloadTask = downloadTask
-        task.state = "downloading"
-        activeTasks[taskId] = task
+        activeTasks[taskId] = DownloadTask(
+            id: taskId,
+            url: url,
+            fileName: fileName,
+            format: format,
+            assetDownloadTask: downloadTask,
+            state: "downloading"
+        )
         
         downloadTask.resume()
         completion(.success(taskId))
@@ -100,14 +97,14 @@ class AwesomeVideoDownloader: NSObject, AVAssetDownloadDelegate {
     func pauseDownload(downloadId: String) {
         guard let task = activeTasks[downloadId] else { return }
         task.assetDownloadTask?.suspend()
-        task.state = "paused"
+        activeTasks[downloadId]?.state = "paused"
         notifyTaskUpdate(task)
     }
     
     func resumeDownload(downloadId: String) {
         guard let task = activeTasks[downloadId] else { return }
         task.assetDownloadTask?.resume()
-        task.state = "downloading"
+        activeTasks[downloadId]?.state = "downloading"
         notifyTaskUpdate(task)
     }
     
@@ -216,7 +213,7 @@ class AwesomeVideoDownloader: NSObject, AVAssetDownloadDelegate {
         let asset = AVURLAsset(url: assetURL)
         asset.loadValuesAsynchronously(forKeys: ["availableMediaCharacteristicsWithMediaSelectionOptions"]) {
             do {
-                let group = asset.mediaSelectionGroup(forMediaCharacteristic: .visual)
+                let group = asset.mediaSelectionGroup(forMediaCharacteristic: .video)
                 var qualities: [[String: Any]] = []
                 
                 if let options = group?.options {
