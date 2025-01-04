@@ -12,13 +12,17 @@ A Flutter plugin for downloading videos in various formats (HLS, DASH, MP4) with
   - HLS (HTTP Live Streaming)
   - DASH (Dynamic Adaptive Streaming over HTTP)
   - MP4 and other direct video files
+- 🎥 Quality selection for adaptive streams:
+  - Resolution selection (1080p, 720p, etc.)
+  - Bitrate control
+  - HDR support detection
+  - Automatic quality adaptation
 - ⚡ Concurrent downloads
 - ⏯️ Pause, resume, and cancel downloads
 - 📊 Real-time progress tracking
 - 🔄 Background download support
 - 📱 Cross-platform (iOS & Android)
-- 🎥 Quality selection for adaptive streams
-- 💾 Offline playback support
+- 🎥 Offline playback support
 
 ## Getting Started
 
@@ -28,7 +32,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  awesome_video_downloader: ^x.y.z
+  awesome_video_downloader: ^0.1.3
 ```
 
 ### Platform Setup
@@ -85,23 +89,31 @@ downloader.getDownloadProgress(downloadId).listen(
 );
 ```
 
-### Download with Options
+### Quality Selection
 
 ```dart
-final downloadId = await downloader.startDownload(
-  url: 'https://example.com/stream.m3u8',
-  fileName: 'video.mp4',
-  format: 'hls',
-  options: VideoDownloadOptions(
-    minimumBitrate: 1500000,  // 1.5 Mbps
-    maximumBitrate: 4000000,  // 4 Mbps
-    preferHDR: true,
-    preferMultichannel: true,
-    headers: {
-      'Authorization': 'Bearer token123',
-    },
-  ),
+// Get available qualities
+final qualities = await downloader.getAvailableQualities(url);
+
+// Show quality selection dialog
+final selectedQuality = await showDialog<VideoQuality>(
+  context: context,
+  builder: (context) => QualitySelectionDialog(qualities: qualities),
 );
+
+if (selectedQuality != null) {
+  final downloadId = await downloader.startDownload(
+    url: url,
+    fileName: 'video.mp4',
+    format: 'hls',
+    options: VideoDownloadOptions(
+      minimumBitrate: selectedQuality.bitrate,
+      maximumBitrate: selectedQuality.bitrate,
+      preferHDR: selectedQuality.isHDR,
+      preferMultichannel: true,
+    ),
+  );
+}
 ```
 
 ### Managing Downloads
@@ -123,17 +135,25 @@ for (final download in downloads) {
 }
 ```
 
-## Download States
-
-Downloads can be in one of these states:
-- `notStarted`: Download hasn't started yet
-- `downloading`: Download is in progress
-- `paused`: Download is paused
-- `completed`: Download finished successfully
-- `failed`: Download failed with an error
-- `cancelled`: Download was cancelled
-
 ## Models
+
+### VideoQuality
+Quality information for video streams:
+```dart
+final quality = VideoQuality(
+  id: 'quality_id',
+  width: 1920,
+  height: 1080,
+  bitrate: 5000000,  // 5 Mbps
+  codec: 'h264',
+  isHDR: true,
+  label: 'Full HD',
+);
+
+print(quality.resolution);    // "1920x1080"
+print(quality.bitrateString); // "5.0 Mbps"
+print(quality.label);         // "Full HD"
+```
 
 ### DownloadProgress
 Real-time progress information:
