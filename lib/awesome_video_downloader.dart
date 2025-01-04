@@ -5,13 +5,61 @@
 // platforms in the `pubspec.yaml` at
 // https://flutter.dev/to/pubspec-plugin-platforms.
 
+import 'package:flutter/widgets.dart';
+
 import 'awesome_video_downloader_platform_interface.dart';
 
 /// A Flutter plugin for downloading videos in various formats (HLS, DASH, MP4)
 class AwesomeVideoDownloader {
+  bool _isInitialized = false;
+
   /// Initialize the downloader
-  Future<void> initialize() {
-    return AwesomeVideoDownloaderPlatform.instance.initialize();
+  ///
+  /// This must be called before using any other methods.
+  /// Make sure to call [WidgetsFlutterBinding.ensureInitialized()] before this.
+  ///
+  /// Throws:
+  /// - [StateError] if called multiple times
+  /// - [StateError] if Flutter bindings are not initialized
+  Future<void> initialize() async {
+    if (_isInitialized) {
+      throw StateError('AwesomeVideoDownloader is already initialized');
+    }
+
+    // Check if Flutter bindings are initialized
+    if (!_isFlutterBindingInitialized()) {
+      throw StateError(
+        'Flutter bindings are not initialized. '
+        'Call WidgetsFlutterBinding.ensureInitialized() before initialize().',
+      );
+    }
+
+    try {
+      await AwesomeVideoDownloaderPlatform.instance.initialize();
+      _isInitialized = true;
+    } catch (e) {
+      throw StateError('Failed to initialize AwesomeVideoDownloader: $e');
+    }
+  }
+
+  // Check if Flutter bindings are initialized
+  bool _isFlutterBindingInitialized() {
+    try {
+      // Just accessing instance will throw if bindings aren't initialized
+      WidgetsBinding.instance;
+      return true;
+    } on StateError {
+      return false;
+    }
+  }
+
+  void _checkInitialized() {
+    if (!_isInitialized) {
+      throw StateError(
+        'AwesomeVideoDownloader must be initialized before use. '
+        'Call initialize() first.',
+      );
+    }
   }
 
   /// Start a new video download
@@ -29,6 +77,8 @@ class AwesomeVideoDownloader {
     required String format,
     VideoDownloadOptions? options,
   }) {
+    _checkInitialized();
+
     if (!_isValidUrl(url)) {
       throw ArgumentError('Invalid URL provided');
     }
@@ -47,6 +97,8 @@ class AwesomeVideoDownloader {
 
   /// Pause an active download
   Future<void> pauseDownload(String downloadId) {
+    _checkInitialized();
+
     if (downloadId.isEmpty) {
       throw ArgumentError('Download ID cannot be empty');
     }
@@ -55,6 +107,8 @@ class AwesomeVideoDownloader {
 
   /// Resume a paused download
   Future<void> resumeDownload(String downloadId) {
+    _checkInitialized();
+
     if (downloadId.isEmpty) {
       throw ArgumentError('Download ID cannot be empty');
     }
@@ -63,6 +117,8 @@ class AwesomeVideoDownloader {
 
   /// Cancel and remove a download
   Future<void> cancelDownload(String downloadId) {
+    _checkInitialized();
+
     if (downloadId.isEmpty) {
       throw ArgumentError('Download ID cannot be empty');
     }
@@ -71,6 +127,8 @@ class AwesomeVideoDownloader {
 
   /// Get the current status of a download
   Future<DownloadStatus> getDownloadStatus(String downloadId) async {
+    _checkInitialized();
+
     if (downloadId.isEmpty) {
       throw ArgumentError('Download ID cannot be empty');
     }
@@ -81,6 +139,8 @@ class AwesomeVideoDownloader {
 
   /// Get a list of all downloads (active and completed)
   Future<List<DownloadInfo>> getAllDownloads() async {
+    _checkInitialized();
+
     final downloads =
         await AwesomeVideoDownloaderPlatform.instance.getAllDownloads();
     return downloads.map((download) => DownloadInfo.fromMap(download)).toList();
@@ -88,6 +148,8 @@ class AwesomeVideoDownloader {
 
   /// Stream download progress updates
   Stream<DownloadProgress> getDownloadProgress(String downloadId) {
+    _checkInitialized();
+
     if (downloadId.isEmpty) {
       throw ArgumentError('Download ID cannot be empty');
     }
@@ -275,7 +337,6 @@ class DownloadInfo extends BaseDownloadInfo {
     super.totalBytes = 0,
     super.filePath,
   });
-
 
   DownloadInfo copyWith({
     DownloadState? state,
