@@ -34,7 +34,7 @@ flutter:
   plugin:
     platforms:
       android:
-        package: uz.fluttterwithakmaljon.awesome_video_downloader
+        package: uz.flutterwithakmaljon.awesome_video_downloader
         pluginClass: AwesomeVideoDownloaderPlugin
       ios:
         pluginClass: AwesomeVideoDownloaderPlugin

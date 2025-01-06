@@ -1,241 +1,234 @@
 import Foundation
 import AVFoundation
-import AVKit
 import Flutter
 
-class AwesomeVideoDownloader: NSObject, AVAssetDownloadDelegate {
-    private var eventSink: FlutterEventSink?
+class AwesomeVideoDownloader: NSObject, FlutterStreamHandler {
     private var downloadSession: AVAssetDownloadURLSession?
-    internal var activeTasks: [String: DownloadTask] = [:]
-    
-    struct DownloadTask {
-        let id: String
-        let url: String
-        let fileName: String
-        let format: String
-        var assetDownloadTask: AVAssetDownloadTask?
-        var progress: Double = 0
-        var bytesDownloaded: Int64 = 0
-        var totalBytes: Int64 = 0
-        var state: String = "not_started"
-        var error: String?
-        var filePath: String?
-        var lastBytesDownloaded: Int64 = 0
-        var lastUpdateTime: Date?
-        var speed: Double = 0.0
-    }
-    
-    private let AVAssetDownloadTaskPrefersMultichannelKey = "AVAssetDownloadTaskPrefersMultichannel"
+    private var activeTasks: [String: AVAssetDownloadTask] = [:]
+    private var downloadLocations: [String: URL] = [:]
+    private var eventSinks: [String: FlutterEventSink] = [:]
+    private var downloadProgress: [String: Double] = [:] // Track progress for each download
     
     override init() {
         super.init()
-        let configuration = URLSessionConfiguration.background(withIdentifier: "com.awesome_video_downloader")
-        downloadSession = AVAssetDownloadURLSession(
-            configuration: configuration,
-            assetDownloadDelegate: self,
-            delegateQueue: OperationQueue.main
-        )
+        setupDownloadSession()
     }
     
-    func setEventSink(_ sink: FlutterEventSink?) {
-        self.eventSink = sink
+    private func setupDownloadSession() {
+        let configuration = URLSessionConfiguration.background(withIdentifier: "com.awesome_video_downloader.background")
+        downloadSession = AVAssetDownloadURLSession(configuration: configuration,
+                                                  assetDownloadDelegate: self,
+                                                  delegateQueue: OperationQueue.main)
+        restoreTasks()
+    }
+    
+    private func restoreTasks() {
+        downloadSession?.getAllTasks { tasks in
+            for task in tasks {
+                if let assetDownloadTask = task as? AVAssetDownloadTask,
+                   let taskId = assetDownloadTask.taskDescription {
+                    self.activeTasks[taskId] = assetDownloadTask
+                    self.downloadProgress[taskId] = 0.0
+                }
+            }
+        }
     }
     
     func startDownload(
         url: String,
-        fileName: String,
-        format: String,
-        options: [String: Any]?,
-        completion: @escaping (Result<String, Error>) -> Void
+        title: String,
+        minimumBitrate: Int,
+        prefersHDR: Bool,
+        prefersMultichannel: Bool,
+        completion: @escaping (String?) -> Void
     ) {
-        guard let assetURL = URL(string: url) else {
-            completion(.failure(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid URL"])))
+        guard let assetURL = URL(string: url),
+              let session = downloadSession else {
+            completion(nil)
             return
         }
         
         let asset = AVURLAsset(url: assetURL)
-        var downloadOptions: [String: Any] = [:]
-        
-        if let opts = options {
-            if let minBitrate = opts["minimumBitrate"] as? Int {
-                downloadOptions[AVAssetDownloadTaskMinimumRequiredMediaBitrateKey] = minBitrate
-            }
-            if let preferHDR = opts["preferHDR"] as? Bool, preferHDR {
-                if #available(iOS 14.0, *) {
-                    downloadOptions["AVAssetDownloadTaskPrefersHDR"] = true
-                }
-            }
-            if let preferMultichannel = opts["preferMultichannel"] as? Bool, preferMultichannel {
-                downloadOptions[AVAssetDownloadTaskPrefersMultichannelKey] = true
-            }
-        }
-        
-        guard let downloadTask = downloadSession?.makeAssetDownloadTask(
-            asset: asset,
-            assetTitle: fileName,
-            assetArtworkData: nil,
-            options: downloadOptions
-        ) else {
-            completion(.failure(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create download task"])))
-            return
-        }
-        
         let taskId = UUID().uuidString
-        activeTasks[taskId] = DownloadTask(
-            id: taskId,
-            url: url,
-            fileName: fileName,
-            format: format,
-            assetDownloadTask: downloadTask,
-            state: "downloading"
-        )
         
-        downloadTask.resume()
-        completion(.success(taskId))
-    }
-    
-    func pauseDownload(downloadId: String) {
-        guard let task = activeTasks[downloadId] else { return }
-        task.assetDownloadTask?.suspend()
-        activeTasks[downloadId]?.state = "paused"
-        notifyTaskUpdate(task)
-    }
-    
-    func resumeDownload(downloadId: String) {
-        guard let task = activeTasks[downloadId] else { return }
-        task.assetDownloadTask?.resume()
-        activeTasks[downloadId]?.state = "downloading"
-        notifyTaskUpdate(task)
-    }
-    
-    func cancelDownload(downloadId: String) {
-        guard let task = activeTasks[downloadId] else { return }
-        task.assetDownloadTask?.cancel()
-        activeTasks.removeValue(forKey: downloadId)
-    }
-    
-    // MARK: - AVAssetDownloadDelegate
-    
-    func urlSession(
-        _ session: URLSession,
-        assetDownloadTask: AVAssetDownloadTask,
-        didLoad timeRange: CMTimeRange,
-        totalTimeRangesLoaded loadedTimeRanges: [NSValue],
-        timeRangeExpectedToLoad: CMTimeRange
-    ) {
-        guard let taskId = getTaskId(for: assetDownloadTask) else { return }
-        guard let task = activeTasks[taskId] else { return }
-        
-        // Calculate progress
-        let totalDuration = CMTimeGetSeconds(timeRangeExpectedToLoad.duration)
-        var loadedDuration: Double = 0
-        for rangeValue in loadedTimeRanges {
-            let timeRange = rangeValue.timeRangeValue
-            loadedDuration += CMTimeGetSeconds(timeRange.duration)
-        }
-        
-        task.progress = totalDuration > 0 ? loadedDuration / totalDuration : 0
-        
-        // Calculate speed
-        let currentTime = Date()
-        if let lastTime = task.lastUpdateTime {
-            let timeDiff = currentTime.timeIntervalSince(lastTime)
-            if timeDiff > 0 {
-                let bytesDiff = task.bytesDownloaded - task.lastBytesDownloaded
-                task.speed = Double(bytesDiff) / timeDiff  // bytes per second
-            }
-        }
-        
-        task.lastBytesDownloaded = task.bytesDownloaded
-        task.lastUpdateTime = currentTime
-        
-        notifyTaskUpdate(task)
-    }
-    
-    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        guard let downloadTask = task as? AVAssetDownloadTask,
-              let taskId = getTaskId(for: downloadTask) else { return }
-        
-        if let error = error {
-            activeTasks[taskId]?.state = "failed"
-            activeTasks[taskId]?.error = error.localizedDescription
-        } else {
-            activeTasks[taskId]?.state = "completed"
-        }
-        
-        if let task = activeTasks[taskId] {
-            notifyTaskUpdate(task)
-        }
-    }
-    
-    func urlSession(_ session: URLSession, assetDownloadTask: AVAssetDownloadTask, didFinishDownloadingTo location: URL) {
-        guard let taskId = getTaskId(for: assetDownloadTask) else { return }
-        
-        activeTasks[taskId]?.filePath = location.path
-        activeTasks[taskId]?.state = "completed"
-        activeTasks[taskId]?.progress = 1.0
-        
-        if let task = activeTasks[taskId] {
-            notifyTaskUpdate(task)
-            eventSink?(FlutterEndOfEventStream)
-        }
-    }
-    
-    // MARK: - Helper Methods
-    
-    private func getTaskId(for downloadTask: AVAssetDownloadTask) -> String? {
-        return activeTasks.first { $0.value.assetDownloadTask === downloadTask }?.key
-    }
-    
-    private func notifyTaskUpdate(_ task: DownloadTask) {
-        var progressMap: [String: Any] = [
-            "id": task.id,
-            "progress": task.progress,
-            "bytesDownloaded": task.bytesDownloaded,
-            "totalBytes": task.totalBytes,
-            "speed": task.speed,
-            "state": task.state
+        var options: [String: Any] = [
+            AVAssetDownloadTaskMinimumRequiredMediaBitrateKey: minimumBitrate
         ]
         
-        if let filePath = task.filePath {
-            progressMap["filePath"] = filePath
+        if #available(iOS 14.0, *) {
+            options[AVAssetDownloadTaskPrefersHDRKey] = prefersHDR
+            options["AVAssetDownloadTaskPrefersMultichannel"] = prefersMultichannel
         }
         
-        eventSink?(progressMap)
-    }
-    
-    func getAvailableQualities(url: String, completion: @escaping (Result<[[String: Any]], Error>) -> Void) {
-        guard let assetURL = URL(string: url) else {
-            completion(.failure(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid URL"])))
+        guard let task = session.makeAssetDownloadTask(asset: asset,
+                                                     assetTitle: title,
+                                                     assetArtworkData: nil,
+                                                     options: options) else {
+            completion(nil)
             return
         }
         
-        let asset = AVURLAsset(url: assetURL)
-        asset.loadValuesAsynchronously(forKeys: ["availableMediaCharacteristicsWithMediaSelectionOptions"]) {
-            do {
-                let group = asset.mediaSelectionGroup(forMediaCharacteristic: .video)
-                var qualities: [[String: Any]] = []
-                
-                if let options = group?.options {
-                    for (index, option) in options.enumerated() {
-                        if let resolution = option.displayName.components(separatedBy: "x").last,
-                           let height = Int(resolution) {
-                            let width = Int(Double(height) * 16 / 9)
-                            let quality: [String: Any] = [
-                                "id": String(index),
-                                "width": width,
-                                "height": height,
-                                "bitrate": option.estimatedDataRate,
-                                "codec": option.mediaSubTypes.first?.rawValue ?? "h264",
-                                "isHDR": option.propertyList["HDR"] as? Bool ?? false,
-                                "label": option.displayName
-                            ]
-                            qualities.append(quality)
-                        }
-                    }
-                }
-                completion(.success(qualities))
+        task.taskDescription = taskId
+        activeTasks[taskId] = task
+        downloadProgress[taskId] = 0.0
+        task.resume()
+        
+        completion(taskId)
+    }
+    
+    func pauseDownload(taskId: String) {
+        activeTasks[taskId]?.suspend()
+    }
+    
+    func resumeDownload(taskId: String) {
+        activeTasks[taskId]?.resume()
+    }
+    
+    func cancelDownload(taskId: String) {
+        activeTasks[taskId]?.cancel()
+        cleanupDownload(taskId)
+    }
+    
+    private func cleanupDownload(_ taskId: String) {
+        activeTasks.removeValue(forKey: taskId)
+        downloadProgress.removeValue(forKey: taskId)
+        eventSinks.removeValue(forKey: taskId)
+    }
+    
+    func getActiveDownloads() -> [[String: Any]] {
+        return activeTasks.map { (taskId, task) in
+            return [
+                "taskId": taskId,
+                "url": task.urlAsset.url.absoluteString,
+                "title": task.taskDescription ?? "",
+                "status": task.state.rawValue,
+                "progress": downloadProgress[taskId] ?? 0.0
+            ]
+        }
+    }
+    
+    func isVideoPlayableOffline(taskId: String) -> Bool {
+        guard let location = downloadLocations[taskId] else { return false }
+        let asset = AVURLAsset(url: location)
+        return asset.assetCache?.isPlayableOffline ?? false
+    }
+    
+    // MARK: - FlutterStreamHandler
+    
+    func onListen(withArguments arguments: Any?, eventSink: @escaping FlutterEventSink) -> FlutterError? {
+        if let args = arguments as? [String: Any],
+           let taskId = args["taskId"] as? String {
+            eventSinks[taskId] = eventSink
+            
+            // Send initial progress if available
+            if let progress = downloadProgress[taskId] {
+                eventSink([
+                    "taskId": taskId,
+                    "progress": progress,
+                    "bytesDownloaded": activeTasks[taskId]?.countOfBytesReceived ?? 0,
+                    "totalBytes": activeTasks[taskId]?.countOfBytesExpectedToReceive ?? 0
+                ])
             }
         }
+        return nil
+    }
+    
+    func onCancel(withArguments arguments: Any?) -> FlutterError? {
+        if let args = arguments as? [String: Any],
+           let taskId = args["taskId"] as? String {
+            eventSinks.removeValue(forKey: taskId)
+        }
+        return nil
+    }
+}
+
+// MARK: - AVAssetDownloadDelegate
+
+extension AwesomeVideoDownloader: AVAssetDownloadDelegate {
+    func urlSession(_ session: URLSession,
+                   assetDownloadTask: AVAssetDownloadTask,
+                   didLoad timeRange: CMTimeRange,
+                   totalTimeRangesLoaded loadedTimeRanges: [NSValue],
+                   timeRangeExpectedToLoad: CMTimeRange) {
+        
+        guard let taskId = assetDownloadTask.taskDescription,
+              let eventSink = eventSinks[taskId] else { return }
+        
+        var percentComplete = 0.0
+        for value in loadedTimeRanges {
+            let loadedTimeRange = value.timeRangeValue
+            percentComplete += CMTimeGetSeconds(loadedTimeRange.duration) /
+                CMTimeGetSeconds(timeRangeExpectedToLoad.duration)
+        }
+        percentComplete *= 100
+        
+        // Store progress
+        downloadProgress[taskId] = percentComplete
+        
+        eventSink([
+            "taskId": taskId,
+            "progress": percentComplete,
+            "bytesDownloaded": assetDownloadTask.countOfBytesReceived,
+            "totalBytes": assetDownloadTask.countOfBytesExpectedToReceive
+        ])
+    }
+    
+    func urlSession(_ session: URLSession,
+                   assetDownloadTask: AVAssetDownloadTask,
+                   didFinishDownloadingTo location: URL) {
+        guard let taskId = assetDownloadTask.taskDescription else { return }
+        downloadLocations[taskId] = location
+    }
+    
+    func urlSession(_ session: URLSession,
+                   task: URLSessionTask,
+                   didCompleteWithError error: Error?) {
+        guard let assetDownloadTask = task as? AVAssetDownloadTask,
+              let taskId = assetDownloadTask.taskDescription,
+              let eventSink = eventSinks[taskId] else { return }
+        
+        if let error = error as NSError? {
+            if error.domain == NSURLErrorDomain && error.code == -1013 {
+                eventSink([
+                    "taskId": taskId,
+                    "error": "Authentication required for this video"
+                ])
+            } else if error.domain == NSURLErrorDomain && error.code == NSURLErrorCancelled {
+                eventSink([
+                    "taskId": taskId,
+                    "status": "cancelled"
+                ])
+            } else {
+                eventSink([
+                    "taskId": taskId,
+                    "error": error.localizedDescription
+                ])
+            }
+        }
+        
+        cleanupDownload(taskId)
+    }
+}
+
+class DownloadEventStreamHandler: NSObject, FlutterStreamHandler {
+    private let taskId: String
+    private let downloader: AwesomeVideoDownloader
+    private let onCancel: () -> Void
+    
+    init(taskId: String, downloader: AwesomeVideoDownloader, onCancel: @escaping () -> Void) {
+        self.taskId = taskId
+        self.downloader = downloader
+        self.onCancel = onCancel
+        super.init()
+    }
+    
+    func onListen(withArguments arguments: Any?, eventSink: @escaping FlutterEventSink) -> FlutterError? {
+        return downloader.onListen(withArguments: ["taskId": taskId], eventSink: eventSink)
+    }
+    
+    func onCancel(withArguments arguments: Any?) -> FlutterError? {
+        let result = downloader.onCancel(withArguments: ["taskId": taskId])
+        onCancel()
+        return result
     }
 } 

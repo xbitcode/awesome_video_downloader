@@ -1,50 +1,37 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:awesome_video_downloader/awesome_video_downloader.dart';
 import 'package:awesome_video_downloader/awesome_video_downloader_method_channel.dart';
+import 'package:awesome_video_downloader/models/download_config.dart';
+import 'package:awesome_video_downloader/models/download_task.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  final platform = MethodChannelAwesomeVideoDownloader();
-  const channel = MethodChannel('awesome_video_downloader');
-  const eventChannel = EventChannel('awesome_video_downloader/events');
+  late MethodChannelAwesomeVideoDownloader platform;
+  late List<MethodCall> methodCalls;
 
   setUp(() {
+    platform = MethodChannelAwesomeVideoDownloader();
+    methodCalls = [];
+
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
-      channel,
+      const MethodChannel('awesome_video_downloader'),
       (MethodCall methodCall) async {
+        methodCalls.add(methodCall);
         switch (methodCall.method) {
-          case 'initialize':
-            return null;
           case 'startDownload':
-            return 'test_download_id';
-          case 'pauseDownload':
-          case 'resumeDownload':
-          case 'cancelDownload':
-            return null;
-          case 'getDownloadStatus':
-            return {
-              'id': 'test_download_id',
-              'state': DownloadState.downloading.name,
-              'bytesDownloaded': 1024,
-              'totalBytes': 2048,
-              'error': null,
-              'filePath': '/path/to/file.mp4',
-            };
-          case 'getAllDownloads':
+            return 'test_id';
+          case 'isVideoPlayableOffline':
+            return true;
+          case 'getActiveDownloads':
             return [
               {
-                'id': 'test_download_id',
-                'url': 'https://example.com/video.mp4',
-                'fileName': 'video.mp4',
-                'format': 'mp4',
-                'state': DownloadState.downloading.name,
-                'createdAt': DateTime.now().toIso8601String(),
-                'bytesDownloaded': 1024,
-                'totalBytes': 2048,
-                'filePath': '/path/to/file.mp4',
+                'taskId': 'test_id',
+                'url': 'test_url',
+                'title': 'test_title',
+                'status': 1,
+                'progress': 50.0,
               }
             ];
           default:
@@ -56,92 +43,215 @@ void main() {
 
   tearDown(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, null);
+        .setMockMethodCallHandler(
+            const MethodChannel('awesome_video_downloader'), null);
   });
 
-  test('initialize', () async {
-    await platform.initialize();
-  });
+  group('startDownload', () {
+    test('passes correct parameters', () async {
+      final config = DownloadConfig(
+        url: 'test_url',
+        title: 'test_title',
+        minimumBitrate: 5000000,
+        prefersHDR: true,
+        prefersMultichannel: true,
+        additionalOptions: {'key': 'value'},
+      );
 
-  test('startDownload', () async {
-    final downloadId = await platform.startDownload(
-      url: 'https://example.com/video.mp4',
-      fileName: 'video.mp4',
-      format: 'mp4',
-    );
-    expect(downloadId, 'test_download_id');
-  });
+      await platform.startDownload(config);
 
-  test('pauseDownload', () async {
-    await platform.pauseDownload('test_download_id');
-  });
+      expect(methodCalls, hasLength(1));
+      expect(methodCalls.first.method, 'startDownload');
+      expect(methodCalls.first.arguments, config.toMap());
+    });
 
-  test('resumeDownload', () async {
-    await platform.resumeDownload('test_download_id');
-  });
-
-  test('cancelDownload', () async {
-    await platform.cancelDownload('test_download_id');
-  });
-
-  test('getDownloadStatus', () async {
-    final status = await platform.getDownloadStatus('test_download_id');
-    expect(status, {
-      'id': 'test_download_id',
-      'state': DownloadState.downloading.name,
-      'error': null,
+    test('returns task ID from platform', () async {
+      final taskId = await platform.startDownload(
+        DownloadConfig(url: 'test_url', title: 'test_title'),
+      );
+      expect(taskId, 'test_id');
     });
   });
 
-  test('getAllDownloads', () async {
-    final downloads = await platform.getAllDownloads();
-    expect(downloads.length, 1);
-    expect(downloads[0]['id'], 'test_download_id');
-    expect(downloads[0]['format'], 'mp4');
-    expect(downloads[0]['state'], DownloadState.downloading.name);
+  group('download management', () {
+    const taskId = 'test_id';
+
+    test('pauseDownload sends correct method call', () async {
+      await platform.pauseDownload(taskId);
+      expect(methodCalls.last.method, 'pauseDownload');
+      expect(methodCalls.last.arguments, {'taskId': taskId});
+    });
+
+    test('resumeDownload sends correct method call', () async {
+      await platform.resumeDownload(taskId);
+      expect(methodCalls.last.method, 'resumeDownload');
+      expect(methodCalls.last.arguments, {'taskId': taskId});
+    });
+
+    test('cancelDownload sends correct method call', () async {
+      await platform.cancelDownload(taskId);
+      expect(methodCalls.last.method, 'cancelDownload');
+      expect(methodCalls.last.arguments, {'taskId': taskId});
+    });
   });
 
-  test('getDownloadProgress stream', () async {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMessageHandler(
-      eventChannel.name,
-      (ByteData? message) async {
-        // Send test event immediately
-        final progress = {
-          'id': 'test_download_id',
-          'progress': 0.5,
-          'speed': 512.0,
+  group('getActiveDownloads', () {
+    test('correctly parses platform response', () async {
+      final downloads = await platform.getActiveDownloads();
+
+      expect(downloads, hasLength(1));
+      expect(downloads.first.taskId, 'test_id');
+      expect(downloads.first.url, 'test_url');
+      expect(downloads.first.title, 'test_title');
+      expect(downloads.first.status, DownloadStatus.downloading);
+      expect(downloads.first.progress, 50.0);
+    });
+  });
+
+  group('getDownloadProgress', () {
+    test('emits progress updates from event channel', () async {
+      final mockData = {
+        'taskId': 'test_id',
+        'progress': 50.0,
+        'bytesDownloaded': 5000,
+        'totalBytes': 10000,
+      };
+
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .handlePlatformMessage(
+        'awesome_video_downloader/events',
+        const StandardMethodCodec().encodeSuccessEnvelope(mockData),
+        (ByteData? reply) {},
+      );
+
+      final progress = await platform.getDownloadProgress('test_id').first;
+
+      expect(progress.taskId, 'test_id');
+      expect(progress.progress, 50.0);
+      expect(progress.bytesDownloaded, 5000);
+      expect(progress.totalBytes, 10000);
+    });
+
+    test('handles null values gracefully', () async {
+      final mockData = {
+        'taskId': 'test_id',
+        'progress': null,
+        'bytesDownloaded': null,
+        'totalBytes': null,
+      };
+
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .handlePlatformMessage(
+        'awesome_video_downloader/events',
+        const StandardMethodCodec().encodeSuccessEnvelope(mockData),
+        (ByteData? reply) {},
+      );
+
+      final progress = await platform.getDownloadProgress('test_id').first;
+
+      expect(progress.taskId, 'test_id');
+      expect(progress.progress, 0.0);
+      expect(progress.bytesDownloaded, 0);
+      expect(progress.totalBytes, 0);
+    });
+
+    test('handles cancellation gracefully', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .handlePlatformMessage(
+        'awesome_video_downloader/events',
+        null,
+        (ByteData? reply) {},
+      );
+
+      final progress = await platform.getDownloadProgress('test_id').first;
+
+      expect(progress.taskId, 'test_id');
+      expect(progress.isCancelled, true);
+      expect(progress.progress, 0.0);
+      expect(progress.bytesDownloaded, 0);
+      expect(progress.totalBytes, 0);
+    });
+
+    test('handles error events', () async {
+      final mockError = {
+        'taskId': 'test_id',
+        'error': 'Download failed',
+      };
+
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .handlePlatformMessage(
+        'awesome_video_downloader/events',
+        const StandardMethodCodec().encodeSuccessEnvelope(mockError),
+        (ByteData? reply) {},
+      );
+
+      expect(
+        platform.getDownloadProgress('test_id').first,
+        throwsA(isA<Exception>().having(
+          (e) => e.toString(),
+          'message',
+          contains('Download failed'),
+        )),
+      );
+    });
+
+    group('handles cancellation', () {
+      test('handles explicit cancellation gracefully', () async {
+        final mockData = {
+          'taskId': 'test_id',
+          'status': 'cancelled',
         };
 
-        // Send event through platform channel
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
             .handlePlatformMessage(
-          eventChannel.name,
-          const StandardMethodCodec().encodeSuccessEnvelope(progress),
-          (_) {},
+          'awesome_video_downloader/events',
+          const StandardMethodCodec().encodeSuccessEnvelope(mockData),
+          (ByteData? reply) {},
         );
 
-        return null;
-      },
-    );
+        final progress = await platform.getDownloadProgress('test_id').first;
+        expect(progress.isCancelled, true);
+      });
 
-    final event = await platform.getDownloadProgress('test_download_id').first;
-    expect(event, {
-      'id': 'test_download_id',
-      'progress': 0.5,
-      'speed': 512.0,
+      test('handles null event as cancellation', () async {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .handlePlatformMessage(
+          'awesome_video_downloader/events',
+          null,
+          (ByteData? reply) {},
+        );
+
+        final progress = await platform.getDownloadProgress('test_id').first;
+        expect(progress.isCancelled, true);
+      });
+
+      test('handles error-based cancellation', () async {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .handlePlatformMessage(
+          'awesome_video_downloader/events',
+          const StandardMethodCodec().encodeErrorEnvelope(
+            code: 'ERROR',
+            message: 'cancelled',
+          ),
+          (ByteData? reply) {},
+        );
+
+        final progress = await platform.getDownloadProgress('test_id').first;
+        expect(progress.isCancelled, true);
+      });
     });
   });
 
-  test('getAvailableQualities', () async {
-    final qualities = await platform.getAvailableQualities(
-      'https://example.com/video.mp4',
-    );
-    expect(qualities, isA<List<Map<String, dynamic>>>());
-    expect(qualities, isNotEmpty);
-    expect(
-      qualities.first,
-      containsPair('height', greaterThan(0)),
-    );
+  group('isVideoPlayableOffline', () {
+    test('sends correct method call', () async {
+      await platform.isVideoPlayableOffline('test_id');
+      expect(methodCalls.last.method, 'isVideoPlayableOffline');
+      expect(methodCalls.last.arguments, {'taskId': 'test_id'});
+    });
+
+    test('returns platform response', () async {
+      final isPlayable = await platform.isVideoPlayableOffline('test_id');
+      expect(isPlayable, true);
+    });
   });
 }
