@@ -46,4 +46,27 @@ abstract class AwesomeVideoDownloaderPlatform extends PlatformInterface {
     throw UnimplementedError(
         'isVideoPlayableOffline() has not been implemented.');
   }
+
+  /// Returns a stream that emits the playable status of the video.
+  /// The stream will emit true when the video becomes playable offline
+  /// and false when it's not playable.
+  Stream<bool> getVideoPlayableStatus(String taskId) {
+    throw UnimplementedError(
+        'getVideoPlayableStatus() has not been implemented.');
+  }
+
+  /// Returns the local file path of the downloaded video.
+  /// Returns null if the video hasn't been downloaded or if the file doesn't exist.
+  Future<String?> getDownloadedFilePath(String taskId) {
+    throw UnimplementedError(
+        'getDownloadedFilePath() has not been implemented.');
+  }
+
+  /// Deletes the downloaded video file for the given task ID.
+  /// Returns true if the file was successfully deleted or didn't exist,
+  /// false if the deletion failed.
+  Future<bool> deleteDownloadedFile(String taskId) {
+    throw UnimplementedError(
+        'deleteDownloadedFile() has not been implemented.');
+  }
 }

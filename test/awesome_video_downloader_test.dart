@@ -78,6 +78,24 @@ class MockAwesomeVideoDownloaderPlatform
   Future<bool> isVideoPlayableOffline(String taskId) async {
     return downloadProgress[taskId] == 100.0;
   }
+
+  @override
+  Future<String?> getDownloadedFilePath(String taskId) {
+    // TODO: implement getDownloadedFilePath
+    throw UnimplementedError();
+  }
+
+  @override
+  Stream<bool> getVideoPlayableStatus(String taskId) {
+    // TODO: implement getVideoPlayableStatus
+    throw UnimplementedError();
+  }
+  
+  @override
+  Future<bool> deleteDownloadedFile(String taskId) {
+    // TODO: implement deleteDownloadedFile
+    throw UnimplementedError();
+  }
 }
 
 void main() {

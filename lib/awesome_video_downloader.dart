@@ -86,6 +86,16 @@ class AwesomeVideoDownloader {
     return AwesomeVideoDownloaderPlatform.instance
         .isVideoPlayableOffline(taskId);
   }
+
+  Stream<bool> getVideoPlayableStatus(String taskId) {
+    return AwesomeVideoDownloaderPlatform.instance
+        .getVideoPlayableStatus(taskId);
+  }
+
+  Future<String?> getDownloadedFilePath(String taskId) {
+    return AwesomeVideoDownloaderPlatform.instance
+        .getDownloadedFilePath(taskId);
+  }
 }
 
 /// Exception thrown when a video requires authentication

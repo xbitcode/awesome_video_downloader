@@ -15,14 +15,22 @@ class MethodChannelAwesomeVideoDownloader
   // Create separate event channels for each task
   final _eventChannels = <String, EventChannel>{};
   final _progressStreams = <String, Stream<DownloadProgress>>{};
+  final _playableStatusStreams = <String, Stream<bool>>{};
 
   @override
   Future<String?> startDownload(DownloadConfig config) async {
-    final taskId = await methodChannel.invokeMethod<String>(
-      'startDownload',
-      config.toMap(),
-    );
-    return taskId;
+    print('#### Flutter: Starting download with config: ${config.toMap()}');
+    try {
+      final taskId = await methodChannel.invokeMethod<String>(
+        'startDownload',
+        config.toMap(),
+      );
+      print('#### Flutter: Download started with taskId: $taskId');
+      return taskId;
+    } catch (e) {
+      print('#### Flutter: Error starting download: $e');
+      rethrow;
+    }
   }
 
   @override
@@ -48,7 +56,9 @@ class MethodChannelAwesomeVideoDownloader
       {'taskId': taskId},
     );
     _eventChannels.remove(taskId);
+    _eventChannels.remove('playable_$taskId');
     _progressStreams.remove(taskId);
+    _playableStatusStreams.remove(taskId);
   }
 
   @override
@@ -62,8 +72,10 @@ class MethodChannelAwesomeVideoDownloader
 
   @override
   Stream<DownloadProgress> getDownloadProgress(String taskId) {
+    print('#### Flutter: Setting up progress stream for taskId: $taskId');
     // Return existing stream if available
     if (_progressStreams.containsKey(taskId)) {
+      print('#### Flutter: Returning existing progress stream');
       return _progressStreams[taskId]!;
     }
 
@@ -71,11 +83,13 @@ class MethodChannelAwesomeVideoDownloader
     final eventChannel =
         EventChannel('awesome_video_downloader/events/$taskId');
     _eventChannels[taskId] = eventChannel;
+    print('#### Flutter: Created new event channel');
 
     // Create and store the stream
     final stream = eventChannel
         .receiveBroadcastStream({'taskId': taskId})
         .map((event) {
+          print('#### Flutter: Received progress event: $event');
           if (event == null) {
             return DownloadProgress(
               taskId: taskId,
@@ -151,6 +165,9 @@ class MethodChannelAwesomeVideoDownloader
           _eventChannels.remove(taskId);
           _progressStreams.remove(taskId);
         },
+        onError: (error) {
+          print('#### Flutter: Error in progress stream: $error');
+        },
       );
 
     _progressStreams[taskId] = stream;
@@ -164,5 +181,54 @@ class MethodChannelAwesomeVideoDownloader
       {'taskId': taskId},
     );
     return result;
+  }
+
+  @override
+  Future<String?> getDownloadedFilePath(String taskId) async {
+    final String? path = await methodChannel.invokeMethod(
+      'getDownloadedFilePath',
+      {'taskId': taskId},
+    );
+    return path;
+  }
+
+  @override
+  Future<bool> deleteDownloadedFile(String taskId) async {
+    final bool result = await methodChannel.invokeMethod(
+      'deleteDownloadedFile',
+      {'taskId': taskId},
+    );
+    return result;
+  }
+
+  @override
+  Stream<bool> getVideoPlayableStatus(String taskId) {
+    // Return existing stream if available
+    if (_playableStatusStreams.containsKey(taskId)) {
+      return _playableStatusStreams[taskId]!;
+    }
+
+    // Create new event channel for this task's playable status
+    final eventChannel =
+        EventChannel('awesome_video_downloader/playable_status/$taskId');
+    _eventChannels['playable_$taskId'] = eventChannel;
+
+    // Create and store the stream
+    final stream =
+        eventChannel.receiveBroadcastStream({'taskId': taskId}).map((event) {
+      if (event == null) return false;
+      final Map<String, dynamic> data = Map<String, dynamic>.from(event as Map);
+      return data['isPlayable'] as bool? ?? false;
+    }).asBroadcastStream()
+          ..listen(
+            null,
+            onDone: () {
+              _eventChannels.remove('playable_$taskId');
+              _playableStatusStreams.remove(taskId);
+            },
+          );
+
+    _playableStatusStreams[taskId] = stream;
+    return stream;
   }
 }

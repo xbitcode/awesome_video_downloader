@@ -37,6 +37,10 @@ public class AwesomeVideoDownloaderPlugin: NSObject, FlutterPlugin {
             handleGetActiveDownloads(result: result)
         case "isVideoPlayableOffline":
             handleIsVideoPlayableOffline(call, result: result)
+        case "getDownloadedFilePath":
+            handleGetDownloadedFilePath(call, result: result)
+        case "deleteDownloadedFile":
+            handleDeleteDownloadedFile(call, result: result)
         default:
             result(FlutterMethodNotImplemented)
         }
@@ -115,6 +119,7 @@ public class AwesomeVideoDownloaderPlugin: NSObject, FlutterPlugin {
         
         downloader.cancelDownload(taskId: taskId)
         removeEventChannel(for: taskId)
+        removeEventChannel(for: "playable_\(taskId)")
         result(nil)
     }
     
@@ -155,5 +160,68 @@ public class AwesomeVideoDownloaderPlugin: NSObject, FlutterPlugin {
             }
         ))
         eventChannels[taskId] = eventChannel
+
+        // Setup playable status event channel
+        let playableChannelName = "awesome_video_downloader/playable_status/\(taskId)"
+        let playableEventChannel = FlutterEventChannel(
+            name: playableChannelName,
+            binaryMessenger: registrar.messenger()
+        )
+        playableEventChannel.setStreamHandler(PlayableStatusStreamHandler(
+            taskId: taskId,
+            downloader: downloader,
+            onCancel: { [weak self] in
+                self?.removeEventChannel(for: "playable_\(taskId)")
+            }
+        ))
+        eventChannels["playable_\(taskId)"] = playableEventChannel
+    }
+    
+    private func handleGetDownloadedFilePath(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+        guard let args = call.arguments as? [String: Any],
+              let taskId = args["taskId"] as? String else {
+            result(FlutterError(code: "INVALID_ARGUMENTS", message: "Task ID is required", details: nil))
+            return
+        }
+        
+        if let location = downloader.getDownloadLocation(taskId) {
+            result(location.path)
+        } else {
+            result(nil)
+        }
+    }
+    
+    private func handleDeleteDownloadedFile(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+        guard let args = call.arguments as? [String: Any],
+              let taskId = args["taskId"] as? String else {
+            result(FlutterError(code: "INVALID_ARGUMENTS", message: "Task ID is required", details: nil))
+            return
+        }
+        
+        result(downloader.deleteDownloadedFile(taskId))
+    }
+}
+
+class PlayableStatusStreamHandler: NSObject, FlutterStreamHandler {
+    private let taskId: String
+    private let downloader: AwesomeVideoDownloader
+    private let onCancel: () -> Void
+    
+    init(taskId: String, downloader: AwesomeVideoDownloader, onCancel: @escaping () -> Void) {
+        self.taskId = taskId
+        self.downloader = downloader
+        self.onCancel = onCancel
+        super.init()
+    }
+    
+    func onListen(withArguments arguments: Any?, eventSink: @escaping FlutterEventSink) -> FlutterError? {
+        downloader.setPlayableStatusEventSink(taskId: taskId, eventSink: eventSink)
+        return nil
+    }
+    
+    func onCancel(withArguments arguments: Any?) -> FlutterError? {
+        downloader.setPlayableStatusEventSink(taskId: taskId, eventSink: nil)
+        onCancel()
+        return nil
     }
 } 

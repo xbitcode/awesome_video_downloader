@@ -1,5 +1,53 @@
+buildscript {
+    ext.kotlin_version = '1.7.10'
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath 'com.android.tools.build:gradle:7.3.0'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+
+android {
+    compileSdkVersion 33
+    namespace 'uz.flutterwithakmaljon.awesome_video_downloader'
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+
+    defaultConfig {
+        minSdkVersion 21
+    }
+}
+
 dependencies {
-    implementation "com.google.android.exoplayer:exoplayer-core:2.19.1"
-    implementation "com.google.android.exoplayer:exoplayer-dash:2.19.1"
-    implementation "com.google.android.exoplayer:exoplayer-hls:2.19.1"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+    implementation 'com.google.android.exoplayer:exoplayer-core:2.19.1'
+    implementation 'com.google.android.exoplayer:exoplayer-dash:2.19.1'
+    implementation 'com.google.android.exoplayer:exoplayer-hls:2.19.1'
+    implementation 'com.google.android.exoplayer:exoplayer-smoothstreaming:2.19.1'
+    implementation 'com.google.android.exoplayer:exoplayer-transformer:2.19.1'
+    implementation 'com.google.android.exoplayer:exoplayer-ui:2.19.1'
+    implementation 'com.google.android.exoplayer:exoplayer-common:2.19.1'
+    implementation 'androidx.media:media:1.6.0'
+    implementation 'com.google.android.exoplayer:exoplayer:2.19.1'
 } 

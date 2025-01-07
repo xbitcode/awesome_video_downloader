@@ -1,5 +1,5 @@
 enum DownloadStatus {
-  pending,
+  initial,
   downloading,
   paused,
   completed,

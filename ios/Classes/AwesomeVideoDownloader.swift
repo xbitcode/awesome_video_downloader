@@ -7,6 +7,7 @@ class AwesomeVideoDownloader: NSObject, FlutterStreamHandler {
     private var activeTasks: [String: AVAssetDownloadTask] = [:]
     private var downloadLocations: [String: URL] = [:]
     private var eventSinks: [String: FlutterEventSink] = [:]
+    private var playableStatusSinks: [String: FlutterEventSink] = [:]
     private var downloadProgress: [String: Double] = [:] // Track progress for each download
     
     override init() {
@@ -93,6 +94,7 @@ class AwesomeVideoDownloader: NSObject, FlutterStreamHandler {
         activeTasks.removeValue(forKey: taskId)
         downloadProgress.removeValue(forKey: taskId)
         eventSinks.removeValue(forKey: taskId)
+        playableStatusSinks.removeValue(forKey: taskId)
     }
     
     func getActiveDownloads() -> [[String: Any]] {
@@ -111,6 +113,25 @@ class AwesomeVideoDownloader: NSObject, FlutterStreamHandler {
         guard let location = downloadLocations[taskId] else { return false }
         let asset = AVURLAsset(url: location)
         return asset.assetCache?.isPlayableOffline ?? false
+    }
+    
+    func getDownloadLocation(_ taskId: String) -> URL? {
+        return downloadLocations[taskId]
+    }
+    
+    func deleteDownloadedFile(_ taskId: String) -> Bool {
+        guard let location = downloadLocations[taskId] else {
+            return true // File doesn't exist, consider it a success
+        }
+        
+        do {
+            try FileManager.default.removeItem(at: location)
+            downloadLocations.removeValue(forKey: taskId)
+            return true
+        } catch {
+            print("Error deleting file: \(error)")
+            return false
+        }
     }
     
     // MARK: - FlutterStreamHandler
@@ -139,6 +160,20 @@ class AwesomeVideoDownloader: NSObject, FlutterStreamHandler {
             eventSinks.removeValue(forKey: taskId)
         }
         return nil
+    }
+    
+    func setPlayableStatusEventSink(taskId: String, eventSink: FlutterEventSink?) {
+        if let eventSink = eventSink {
+            playableStatusSinks[taskId] = eventSink
+            // Send initial status
+            let isPlayable = isVideoPlayableOffline(taskId: taskId)
+            eventSink([
+                "taskId": taskId,
+                "isPlayable": isPlayable
+            ])
+        } else {
+            playableStatusSinks.removeValue(forKey: taskId)
+        }
     }
 }
 
@@ -178,6 +213,14 @@ extension AwesomeVideoDownloader: AVAssetDownloadDelegate {
                    didFinishDownloadingTo location: URL) {
         guard let taskId = assetDownloadTask.taskDescription else { return }
         downloadLocations[taskId] = location
+        
+        // Notify that the video is now playable
+        if let eventSink = playableStatusSinks[taskId] {
+            eventSink([
+                "taskId": taskId,
+                "isPlayable": true
+            ])
+        }
     }
     
     func urlSession(_ session: URLSession,
