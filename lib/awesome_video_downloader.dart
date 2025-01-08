@@ -96,6 +96,10 @@ class AwesomeVideoDownloader {
     return AwesomeVideoDownloaderPlatform.instance
         .getDownloadedFilePath(taskId);
   }
+
+  Future<bool> deleteDownloadedFile(String taskId) {
+    return AwesomeVideoDownloaderPlatform.instance.deleteDownloadedFile(taskId);
+  }
 }
 
 /// Exception thrown when a video requires authentication
