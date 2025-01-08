@@ -21,6 +21,50 @@ public class AwesomeVideoDownloaderPlugin: NSObject, FlutterPlugin {
         )
         
         registrar.addMethodCallDelegate(instance, channel: channel)
+        
+        // Set up event channels for restored downloads
+        instance.setupEventChannelsForRestoredDownloads()
+    }
+    
+    private func setupEventChannelsForRestoredDownloads() {
+        // Get all saved download locations
+        if let savedLocations = UserDefaults.standard.dictionary(forKey: "com.awesome_video_downloader.downloadLocations") as? [String: String] {
+            for taskId in savedLocations.keys {
+                setupEventChannel(for: taskId)
+            }
+        }
+    }
+    
+    private func setupEventChannel(for taskId: String) {
+        // Setup progress event channel
+        let channelName = "awesome_video_downloader/events/\(taskId)"
+        let eventChannel = FlutterEventChannel(
+            name: channelName,
+            binaryMessenger: registrar.messenger()
+        )
+        eventChannel.setStreamHandler(DownloadEventStreamHandler(
+            taskId: taskId,
+            downloader: downloader,
+            onCancel: { [weak self] in
+                self?.eventChannels.removeValue(forKey: taskId)
+            }
+        ))
+        eventChannels[taskId] = eventChannel
+
+        // Setup playable status event channel
+        let playableChannelName = "awesome_video_downloader/playable_status/\(taskId)"
+        let playableEventChannel = FlutterEventChannel(
+            name: playableChannelName,
+            binaryMessenger: registrar.messenger()
+        )
+        playableEventChannel.setStreamHandler(PlayableStatusStreamHandler(
+            taskId: taskId,
+            downloader: downloader,
+            onCancel: { [weak self] in
+                self?.eventChannels.removeValue(forKey: "playable_\(taskId)")
+            }
+        ))
+        eventChannels["playable_\(taskId)"] = playableEventChannel
     }
     
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -58,16 +102,12 @@ public class AwesomeVideoDownloaderPlugin: NSObject, FlutterPlugin {
             return
         }
         
-        let minimumBitrate = args["minimumBitrate"] as? Int ?? 2000000
-        let prefersHDR = args["prefersHDR"] as? Bool ?? false
-        let prefersMultichannel = args["prefersMultichannel"] as? Bool ?? false
-        
         downloader.startDownload(
             url: url,
             title: title,
-            minimumBitrate: minimumBitrate,
-            prefersHDR: prefersHDR,
-            prefersMultichannel: prefersMultichannel
+            minimumBitrate: args["minimumBitrate"] as? Int ?? 2000000,
+            prefersHDR: args["prefersHDR"] as? Bool ?? false,
+            prefersMultichannel: args["prefersMultichannel"] as? Bool ?? false
         ) { taskId in
             if let taskId = taskId {
                 self.setupEventChannel(for: taskId)
@@ -144,37 +184,6 @@ public class AwesomeVideoDownloaderPlugin: NSObject, FlutterPlugin {
         }
         
         result(downloader.isVideoPlayableOffline(taskId: taskId))
-    }
-    
-    private func setupEventChannel(for taskId: String) {
-        let channelName = "awesome_video_downloader/events/\(taskId)"
-        let eventChannel = FlutterEventChannel(
-            name: channelName,
-            binaryMessenger: registrar.messenger()
-        )
-        eventChannel.setStreamHandler(DownloadEventStreamHandler(
-            taskId: taskId,
-            downloader: downloader,
-            onCancel: { [weak self] in
-                self?.removeEventChannel(for: taskId)
-            }
-        ))
-        eventChannels[taskId] = eventChannel
-
-        // Setup playable status event channel
-        let playableChannelName = "awesome_video_downloader/playable_status/\(taskId)"
-        let playableEventChannel = FlutterEventChannel(
-            name: playableChannelName,
-            binaryMessenger: registrar.messenger()
-        )
-        playableEventChannel.setStreamHandler(PlayableStatusStreamHandler(
-            taskId: taskId,
-            downloader: downloader,
-            onCancel: { [weak self] in
-                self?.removeEventChannel(for: "playable_\(taskId)")
-            }
-        ))
-        eventChannels["playable_\(taskId)"] = playableEventChannel
     }
     
     private func handleGetDownloadedFilePath(_ call: FlutterMethodCall, result: @escaping FlutterResult) {

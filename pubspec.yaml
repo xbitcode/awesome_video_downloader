@@ -11,10 +11,14 @@ environment:
   flutter: '>=3.3.0'
 
 dependencies:
+  dio: ^5.7.0
   equatable: ^2.0.7
   flutter:
     sdk: flutter
+  flutter_hls_parser: ^2.0.1
+  path_provider: ^2.1.5
   plugin_platform_interface: ^2.0.2
+  shared_preferences: ^2.3.5
 
 dev_dependencies:
   flutter_test:
