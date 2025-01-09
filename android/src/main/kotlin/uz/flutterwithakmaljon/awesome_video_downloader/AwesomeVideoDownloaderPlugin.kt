@@ -48,12 +48,15 @@ class AwesomeVideoDownloaderPlugin: FlutterPlugin, MethodCallHandler {
     private val downloadTasks = mutableMapOf<String, Downloader>()
     private val progressChannels = mutableMapOf<String, EventChannel>()
     private val progressSinks = mutableMapOf<String, EventChannel.EventSink>()
+    private val playableStatusChannels = mutableMapOf<String, EventChannel>()
+    private val playableStatusSinks = mutableMapOf<String, EventChannel.EventSink>()
     private val lastProgressUpdates = mutableMapOf<String, Float>()
     private val lastUpdateTimes = mutableMapOf<String, Long>()
     private val downloadStates = mutableMapOf<String, DownloadState>()
     private lateinit var downloadCache: Cache
     private val mainHandler = Handler(Looper.getMainLooper())
     private val taskCounter = AtomicInteger(0)
+    private val lastPlayableStatus = mutableMapOf<String, Boolean>()
 
     override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
         context = flutterPluginBinding.applicationContext
@@ -75,6 +78,8 @@ class AwesomeVideoDownloaderPlugin: FlutterPlugin, MethodCallHandler {
             "startDownload" -> handleStartDownload(call, result)
             "pauseDownload" -> handlePauseDownload(call, result)
             "resumeDownload" -> handleResumeDownload(call, result)
+            "isVideoPlayableOffline" -> handleIsVideoPlayableOffline(call, result)
+            "getDownloadedFilePath" -> handleGetDownloadedFilePath(call, result)
             else -> result.notImplemented()
         }
     }
@@ -107,15 +112,19 @@ class AwesomeVideoDownloaderPlugin: FlutterPlugin, MethodCallHandler {
             downloadTasks[taskId] = downloader
 
             setupProgressTracking(taskId)
+            setupPlayableStatusTracking(taskId)
             lastProgressUpdates[taskId] = 0f
             lastUpdateTimes[taskId] = 0L
             downloadStates[taskId] = DownloadState.INITIAL
+            
+            checkAndSendPlayableStatus(taskId)
 
             Executors.newSingleThreadExecutor().execute {
                 try {
                     var lastContentLength = 0L
                     Log.d(TAG, "Download started for taskId: $taskId")
                     downloadStates[taskId] = DownloadState.DOWNLOADING
+                    checkAndSendPlayableStatus(taskId)
                     
                     downloader.download { contentLength, bytesDownloaded, percentDownloaded ->
                         lastContentLength = contentLength
@@ -130,9 +139,17 @@ class AwesomeVideoDownloaderPlugin: FlutterPlugin, MethodCallHandler {
                                     "totalBytes" to contentLength,
                                     "status" to downloadStates[taskId]?.value
                                 ))
+                                checkAndSendPlayableStatus(taskId)
                             }
                             lastProgressUpdates[taskId] = percentDownloaded
                             lastUpdateTimes[taskId] = currentTime
+                        }
+
+                        if (percentDownloaded >= 100f) {
+                            downloadStates[taskId] = DownloadState.COMPLETED
+                            mainHandler.post {
+                                checkAndSendPlayableStatus(taskId)
+                            }
                         }
                     }
                     
@@ -145,11 +162,13 @@ class AwesomeVideoDownloaderPlugin: FlutterPlugin, MethodCallHandler {
                             "totalBytes" to lastContentLength,
                             "status" to DownloadState.COMPLETED.value
                         ))
+                        checkAndSendPlayableStatus(taskId)
                     }
                 } catch (e: Exception) {
                     downloadStates[taskId] = DownloadState.FAILED
-                    Log.e(TAG, "Download failed for taskId: $taskId", e)
                     mainHandler.post {
+                        checkAndSendPlayableStatus(taskId)
+                        Log.e(TAG, "Download failed for taskId: $taskId", e)
                         progressSinks[taskId]?.error(
                             "DOWNLOAD_ERROR",
                             "Download failed: ${e.message}",
@@ -211,12 +230,12 @@ class AwesomeVideoDownloaderPlugin: FlutterPlugin, MethodCallHandler {
             }
         })
         progressChannels[taskId] = eventChannel
+        // Also setup playable status tracking
+        setupPlayableStatusTracking(taskId)
     }
 
     private fun generateTaskId(): String {
-        val counter = taskCounter.getAndIncrement()
-        val uuid = UUID.randomUUID().toString().substring(0, 8) // Take first 8 chars of UUID
-        return "task_${uuid}_$counter"
+        return UUID.randomUUID().toString().uppercase()
     }
 
     private fun handlePauseDownload(call: MethodCall, result: Result) {
@@ -240,6 +259,7 @@ class AwesomeVideoDownloaderPlugin: FlutterPlugin, MethodCallHandler {
                             "status" to DownloadState.PAUSED.value,
                             "progress" to (lastProgressUpdates[taskId] ?: 0f).toDouble()
                         ))
+                        checkAndSendPlayableStatus(taskId)
                         result.success(null)
                     }
                 } catch (e: Exception) {
@@ -336,10 +356,131 @@ class AwesomeVideoDownloaderPlugin: FlutterPlugin, MethodCallHandler {
         }
     }
 
+    private fun setupPlayableStatusTracking(taskId: String) {
+        val eventChannel = EventChannel(binaryMessenger, "awesome_video_downloader/playable_status/$taskId")
+        eventChannel.setStreamHandler(object : EventChannel.StreamHandler {
+            override fun onListen(arguments: Any?, events: EventChannel.EventSink) {
+                playableStatusSinks[taskId] = events
+                // Send initial status
+                checkAndSendPlayableStatus(taskId)
+            }
+
+            override fun onCancel(arguments: Any?) {
+                playableStatusSinks.remove(taskId)
+            }
+        })
+        playableStatusChannels[taskId] = eventChannel
+    }
+
+    private fun checkAndSendPlayableStatus(taskId: String) {
+        try {
+            val isPlayable = isVideoPlayableOffline(taskId)
+            val lastStatus = lastPlayableStatus[taskId]
+            
+            // Only send if status has changed or it's the first update
+            if (lastStatus == null || lastStatus != isPlayable) {
+                Log.d(TAG, "Sending playable status for $taskId: $isPlayable (changed from $lastStatus)")
+                mainHandler.post {
+                    playableStatusSinks[taskId]?.success(mapOf(
+                        "taskId" to taskId,
+                        "isPlayable" to isPlayable
+                    ))
+                }
+                lastPlayableStatus[taskId] = isPlayable
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error sending playable status: $taskId", e)
+            mainHandler.post {
+                playableStatusSinks[taskId]?.error(
+                    "PLAYABLE_STATUS_ERROR",
+                    "Failed to get playable status: ${e.message}",
+                    null
+                )
+            }
+        }
+    }
+
+    private fun isVideoPlayableOffline(taskId: String): Boolean {
+        try {
+            // First check if the download state is completed
+            val state = downloadStates[taskId]
+            Log.d(TAG, "Checking playable status for $taskId, state: $state")
+            
+            if (state == DownloadState.COMPLETED) {
+                // Check if we have a direct file (for MP4)
+                val file = getDownloadedFile(taskId)
+                Log.d(TAG, "File exists check for $taskId: ${file?.exists()}, path: ${file?.absolutePath}")
+                
+                if (file?.exists() == true) {
+                    Log.d(TAG, "File exists for $taskId at ${file.absolutePath}")
+                    return true
+                }
+                
+                // For HLS content, check if we have segments in cache
+                val keys = downloadCache.keys
+                val hasSegments = keys.isNotEmpty()  // If we have any segments, consider it playable
+                Log.d(TAG, "Cache has segments: $hasSegments, number of segments: ${keys.size}")
+                return hasSegments
+            }
+            Log.d(TAG, "Download not completed for $taskId")
+            return false
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking playable status: $taskId", e)
+            return false
+        }
+    }
+
+    private fun getDownloadedFile(taskId: String): File? {
+        val cacheDir = File(context.cacheDir, "media_downloads")
+        // For progressive downloads (MP4), look for the direct file first
+        val file = File(cacheDir, taskId)
+        if (file.exists()) {
+            return file
+        }
+        // For HLS content, look for the base directory
+        val hlsDir = File(cacheDir, taskId)
+        return if (hlsDir.exists() && hlsDir.isDirectory) hlsDir else null
+    }
+
+    private fun handleIsVideoPlayableOffline(call: MethodCall, result: Result) {
+        try {
+            val taskId = call.argument<String>("taskId")
+                ?: throw IllegalArgumentException("Task ID is required")
+            
+            result.success(isVideoPlayableOffline(taskId))
+        } catch (e: Exception) {
+            result.error("PLAYABLE_STATUS_ERROR", e.message, null)
+        }
+    }
+
+    private fun handleGetDownloadedFilePath(call: MethodCall, result: Result) {
+        try {
+            val taskId = call.argument<String>("taskId")
+                ?: throw IllegalArgumentException("Task ID is required")
+            
+            val file = getDownloadedFile(taskId)
+            if (file?.exists() == true) {
+                result.success(file.absolutePath)
+            } else {
+                result.error(
+                    "FILE_NOT_FOUND",
+                    "Downloaded file not found for taskId: $taskId",
+                    null
+                )
+            }
+        } catch (e: Exception) {
+            result.error("GET_FILE_PATH_ERROR", e.message, null)
+        }
+    }
+
     override fun onDetachedFromEngine(@NonNull binding: FlutterPlugin.FlutterPluginBinding) {
         channel.setMethodCallHandler(null)
         progressChannels.clear()
         progressSinks.clear()
+        playableStatusChannels.values.forEach { it.setStreamHandler(null) }
+        playableStatusChannels.clear()
+        playableStatusSinks.clear()
+        lastPlayableStatus.clear()
         downloadTasks.clear()
         downloadStates.clear()
         downloadCache.release()

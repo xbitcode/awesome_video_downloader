@@ -116,44 +116,121 @@ class AwesomeVideoDownloader: NSObject, FlutterStreamHandler {
         
         let taskId = UUID().uuidString
         
-        // Check if it's an MP4 file
         if url.lowercased().hasSuffix(".mp4") {
-            guard let session = mp4DownloadSession else {
-                completion(nil)
-                return
-            }
-            
-            var request = URLRequest(url: assetURL)
-            request.httpMethod = "GET"
-            request.cachePolicy = .reloadIgnoringLocalCacheData
-            
-            let task = session.downloadTask(with: request)
-            task.taskDescription = taskId
-            mp4Tasks[taskId] = task
-            downloadProgress[taskId] = 0.0
-            
-            // Initialize event sink with 0 progress
-            if let eventSink = eventSinks[taskId] {
-                eventSink([
-                    "taskId": taskId,
-                    "progress": 0.0,
-                    "bytesDownloaded": 0,
-                    "totalBytes": 0
-                ])
-            }
-            
-            task.resume()
-            completion(taskId)
+            startMP4Download(url: assetURL, taskId: taskId, completion: completion)
+        } else if url.lowercased().contains(".m3u8") {
+            startHLSDownload(url: assetURL, taskId: taskId, title: title, minimumBitrate: minimumBitrate, prefersHDR: prefersHDR, prefersMultichannel: prefersMultichannel, completion: completion)
+        } else if url.lowercased().contains(".mpd") {
+            startDASHDownload(url: assetURL, taskId: taskId, title: title, minimumBitrate: minimumBitrate, prefersHDR: prefersHDR, prefersMultichannel: prefersMultichannel, completion: completion)
+        } else {
+            // Default to HLS/DASH download for unknown formats
+            startHLSDownload(url: assetURL, taskId: taskId, title: title, minimumBitrate: minimumBitrate, prefersHDR: prefersHDR, prefersMultichannel: prefersMultichannel, completion: completion)
+        }
+    }
+    
+    private func startMP4Download(url: URL, taskId: String, completion: @escaping (String?) -> Void) {
+        guard let session = mp4DownloadSession else {
+            completion(nil)
             return
         }
         
-        // For HLS and DASH, use AVAssetDownloadTask
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        
+        let task = session.downloadTask(with: request)
+        task.taskDescription = taskId
+        mp4Tasks[taskId] = task
+        downloadProgress[taskId] = 0.0
+        
+        initializeEventSink(taskId: taskId)
+        task.resume()
+        completion(taskId)
+    }
+    
+    private func startHLSDownload(
+        url: URL,
+        taskId: String,
+        title: String,
+        minimumBitrate: Int,
+        prefersHDR: Bool,
+        prefersMultichannel: Bool,
+        completion: @escaping (String?) -> Void
+    ) {
+        startAVAssetDownload(
+            url: url,
+            taskId: taskId,
+            title: title,
+            minimumBitrate: minimumBitrate,
+            prefersHDR: prefersHDR,
+            prefersMultichannel: prefersMultichannel,
+            completion: completion
+        )
+    }
+    
+    private func startDASHDownload(
+        url: URL,
+        taskId: String,
+        title: String,
+        minimumBitrate: Int,
+        prefersHDR: Bool,
+        prefersMultichannel: Bool,
+        completion: @escaping (String?) -> Void
+    ) {
+        startAVAssetDownload(
+            url: url,
+            taskId: taskId,
+            title: title,
+            minimumBitrate: minimumBitrate,
+            prefersHDR: prefersHDR,
+            prefersMultichannel: prefersMultichannel,
+            completion: completion
+        )
+    }
+    
+    private func startAVAssetDownload(
+        url: URL,
+        taskId: String,
+        title: String,
+        minimumBitrate: Int,
+        prefersHDR: Bool,
+        prefersMultichannel: Bool,
+        completion: @escaping (String?) -> Void
+    ) {
         guard let session = downloadSession else {
             completion(nil)
             return
         }
         
-        let asset = AVURLAsset(url: assetURL)
+        let asset = AVURLAsset(url: url)
+        var options = createAVAssetDownloadOptions(
+            minimumBitrate: minimumBitrate,
+            prefersHDR: prefersHDR,
+            prefersMultichannel: prefersMultichannel
+        )
+        
+        guard let task = session.makeAssetDownloadTask(
+            asset: asset,
+            assetTitle: title,
+            assetArtworkData: nil,
+            options: options
+        ) else {
+            completion(nil)
+            return
+        }
+        
+        task.taskDescription = taskId
+        activeTasks[taskId] = task
+        downloadProgress[taskId] = 0.0
+        task.resume()
+        completion(taskId)
+    }
+    
+    private func createAVAssetDownloadOptions(
+        minimumBitrate: Int,
+        prefersHDR: Bool,
+        prefersMultichannel: Bool
+    ) -> [String: Any] {
         var options: [String: Any] = [
             AVAssetDownloadTaskMinimumRequiredMediaBitrateKey: minimumBitrate
         ]
@@ -163,20 +240,18 @@ class AwesomeVideoDownloader: NSObject, FlutterStreamHandler {
             options["AVAssetDownloadTaskPrefersMultichannel"] = prefersMultichannel
         }
         
-        guard let task = session.makeAssetDownloadTask(asset: asset,
-                                                     assetTitle: title,
-                                                     assetArtworkData: nil,
-                                                     options: options) else {
-            completion(nil)
-            return
+        return options
+    }
+    
+    private func initializeEventSink(taskId: String) {
+        if let eventSink = eventSinks[taskId] {
+            eventSink([
+                "taskId": taskId,
+                "progress": 0.0,
+                "bytesDownloaded": 0,
+                "totalBytes": 0
+            ])
         }
-        
-        task.taskDescription = taskId
-        activeTasks[taskId] = task
-        downloadProgress[taskId] = 0.0
-        task.resume()
-        
-        completion(taskId)
     }
     
     func pauseDownload(taskId: String) {

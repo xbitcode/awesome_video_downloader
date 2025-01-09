@@ -29,3 +29,6 @@ class DownloadConfig {
     };
   }
 }
+
+
+// our downloadconfig also contains authentication, can we also use that to fix the problem one as well?

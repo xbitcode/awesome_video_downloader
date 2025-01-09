@@ -90,7 +90,7 @@ class MockAwesomeVideoDownloaderPlatform
     // TODO: implement getVideoPlayableStatus
     throw UnimplementedError();
   }
-  
+
   @override
   Future<bool> deleteDownloadedFile(String taskId) {
     // TODO: implement deleteDownloadedFile
