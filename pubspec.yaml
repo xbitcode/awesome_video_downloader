@@ -37,9 +37,6 @@ topics:
 flutter:
   plugin:
     platforms:
-      android:
-        package: uz.flutterwithakmaljon.awesome_video_downloader
-        pluginClass: AwesomeVideoDownloaderPlugin
       ios:
         pluginClass: AwesomeVideoDownloaderPlugin
         minimumOSVersion: 11.0
