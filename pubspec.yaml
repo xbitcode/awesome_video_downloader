@@ -7,7 +7,7 @@ issue_tracker: https://github.com/AkmaljonAbdirakhimov/awesome_video_downloader/
 documentation: https://github.com/AkmaljonAbdirakhimov/awesome_video_downloader/blob/main/README.md
 
 environment:
-  sdk: ^3.5.3
+  sdk: ^3.0.0
   flutter: '>=3.3.0'
 
 dependencies:
